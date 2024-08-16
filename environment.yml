@@ -1,9 +1,6 @@
 name: fsuploader
 dependencies:
   - python=3.12
-  - lxml
   - pandas
-  - numpy
-  - pip
-  - openpyxl
   - beautifulsoup4
+  - conda-forge::python-dotenv

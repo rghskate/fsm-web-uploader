@@ -11,6 +11,20 @@ def overprint(content):
     print(end='\x1b[2K')
     print(content,end='\r')
 
+def remove_isu(filepath, replace='GBR'):
+    flag_find = '<img src="../flags/ISU.GIF">'
+    flag_replace = f'<img src="../flags/{replace}.GIF">'
+    noc_find = '<td>ISU</td>'
+    noc_replace = f'<td>{replace}</td>'
+
+    with open(filepath, 'r') as f:
+        data = f.read()
+    
+    data = data.replace(flag_find, flag_replace).replace(noc_find,noc_replace)
+
+    with open(filepath, 'w') as f:
+        f.write(data)
+
 def get_mtime_remote(ftp:FTP, remote_file:str):
     response = ftp.sendcmd(f'MDTM {remote_file}')
     mtime = response[4:]
@@ -96,7 +110,9 @@ def main():
     segments = pd.DataFrame(segments,columns=['date_obj','category','segment','segment_link'])
     segments.loc[:,'segment_judges_link'] = segments.loc[:,'segment_link'].str.replace('.htm','OF.htm')
 
-    
+    # Remove references to ISU from judges pages
+    for page in segments.loc[:,'segment_judges_link']:
+        remove_isu(page, replace='GBR')
 
     print(f'Connecting to FTP site {env["HOSTNAME"]} as {env["USER"]}...')
 

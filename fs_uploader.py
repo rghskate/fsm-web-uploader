@@ -96,7 +96,7 @@ def main():
     segments = pd.DataFrame(segments,columns=['date_obj','category','segment','segment_link'])
     segments.loc[:,'segment_judges_link'] = segments.loc[:,'segment_link'].str.replace('.htm','OF.htm')
 
-    local_filelist = pd.Series(os.listdir('.'))
+    
 
     print(f'Connecting to FTP site {env["HOSTNAME"]} as {env["USER"]}...')
 
@@ -132,6 +132,7 @@ def main():
     
     try:
         while True:
+            local_filelist = pd.Series(os.listdir('.'))
             update_counter=0
             if manual_time is not None:
                 test_time = manual_time

@@ -3,4 +3,5 @@ dependencies:
   - python=3.12
   - pandas
   - beautifulsoup4
+  - lxml
   - conda-forge::python-dotenv

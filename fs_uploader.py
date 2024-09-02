@@ -61,6 +61,7 @@ def upload_updated_files(ftp:FTP, current_filetable:pd.DataFrame, old_filetable:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('ENV',help='Environment file containing the following parameters: USER, PASSWORD, HOSTNAME, PORT, REMOTE_DIR')
+    parser.add_argument('--keepalive','-k',help='Time in seconds to wait between sending keepalive signals to the FTP server. Defaults to 780 (13 minutes).',default=780)
     parser.add_argument('--sleep-interval','-s',help='Time in seconds to wait between update cycles. Defaults to 5.',default=5)
     parser.add_argument('--time','-t',help='Set a manual time to check segments against. Must be set in "YYYY-MM-DD HH:MM:SS" format.')
     args = parser.parse_args()
@@ -73,7 +74,7 @@ def main():
     sleep_interval = int(args.sleep_interval)
     env = dotenv_values(os.path.normpath(os.path.abspath(args.ENV)))
     replace_isu = env.get('REPLACE_ISU')
-    keepalive_interval = 780
+    keepalive_interval = int(args.keepalive)
     local_dir = os.path.normpath(os.path.normpath(os.path.abspath(env['LOCAL_DIR'])))
     os.chdir(local_dir)
 
@@ -190,7 +191,6 @@ def main():
         print("\n\nClosing...")
     
     ftp.quit()
-    print(replace_isu)
     print('Connection closed.')
     exit(0)
 

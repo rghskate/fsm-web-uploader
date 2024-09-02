@@ -181,7 +181,7 @@ def main():
                     ftp.getwelcome()
                     time_last_update = datetime.now()
                 else:
-                    overprint(f'Time since last update = {(datetime.now()-time_last_update)}')
+                    overprint(f'Time since last update = {str(datetime.now()-time_last_update).split('.')[0]}')
             else:
                 overprint(f'Updated {update_counter} on last round.')
                 time_last_update = datetime.now()

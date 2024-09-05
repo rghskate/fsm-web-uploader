@@ -86,17 +86,25 @@ def main():
         print(e)
         exit(1)
 
-    copyright_notice = r'<tr class="LastLine"><td>&copy; 2024 <a href="http://www.isu.org">International Skating Union</a>. All Rights Reserved.</td></tr>'
 
-    if copyright_notice not in html_content:
+    copyright_notices = [r'&copy;',r'<a href="http://www.isu.org">International Skating Union</a>', r'All Rights Reserved.']
+
+    if not all(substring in html_content for substring in copyright_notices):
         print('ISU copyright notice could not be found in index.htm! Either this is the wrong folder or you have been modifying the templates extensively.\nRestore the default copyright notice to the generated site to continue.')
         exit(1)
 
     soup = BeautifulSoup(html_content,'lxml')
 
-    tables = soup.find_all('table',{'width':'70%'})
+    try:
+        results_table = soup.find_all('table',{'width':'70%'})[0]
+    except IndexError:
+        results_table = soup.find_all('table',{'class':'MainTables'})[1]
+    except Exception as e:
+        print('Failed to find timetable with following error:')
+        print(e)
+        exit(1)
 
-    rows:list = tables[0].find_all('tr')
+    rows:list = results_table.find_all('tr')
     rows.pop(0)
 
     segments = []

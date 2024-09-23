@@ -12,6 +12,20 @@ def overprint(content):
     print(end='\x1b[2K')
     print(content,end='\r')
 
+def edit_header_image(filepath, start_date, end_date, comp_name):
+    with open(filepath,'r') as f:
+        data = f.read()
+
+    initial_data = data
+
+    data = data.replace('$COMP_NAME',comp_name)
+    data = data.replace('$START_DATE',start_date)
+    data = data.replace('$END_DATE',end_date)
+
+    if data != initial_data:
+        with open(filepath, 'w') as f:
+            f.write(data)
+
 def remove_isu(filepath, replace='GBR'):
     flag_find = '<img src="../flags/ISU.GIF">'
     flag_replace = f'<img src="../flags/{replace}.GIF">'
@@ -75,7 +89,7 @@ def main():
     env = dotenv_values(os.path.normpath(os.path.abspath(args.ENV)))
     replace_isu = env.get('REPLACE_ISU')
     keepalive_interval = int(args.keepalive)
-    local_dir = os.path.normpath(os.path.normpath(os.path.abspath(env['LOCAL_DIR'])))
+    local_dir = os.path.normpath(os.path.normpath(os.path.abspath(env['LOCAL_DIR'].replace('\\','/'))))
     os.chdir(local_dir)
 
     try:
@@ -163,7 +177,7 @@ def main():
     print('\nMonitoring local directory for changes...')
     print('\nTo close connection, press Ctrl-C.\n')
 
-    
+    ## Main loop
     filetable_current = pd.DataFrame({'filepaths':'',
                                           'hashes':''}, index = [0])
     try:
@@ -171,6 +185,10 @@ def main():
             overprint('Checking for changes...')
             filetable_previous = filetable_current
             local_filelist = pd.Series(os.listdir('.'))
+
+            for file in local_filelist:
+                if os.path.splitext(file)[1] == '.htm':
+                    edit_header_image(file, env['START_DATE'], env['END_DATE'], env['COMP_NAME'])
 
             if manual_time is not None:
                 test_time = manual_time

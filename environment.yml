@@ -4,5 +4,4 @@ dependencies:
   - pandas
   - beautifulsoup4
   - lxml
-  - conda-forge::python-dotenv
   - pyqt

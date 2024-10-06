@@ -65,7 +65,7 @@ class Window(QMainWindow):
         layout.addWidget(QLineEdit(self),0,0)
         layout.addWidget(QPushButton('...'))
         
-        self.filepathBoxContainer = QVBoxLayout().addWidget(self).setLayout(layout)
+        self.filepathBoxContainer = QVBoxLayout().addWidget().setLayout(layout)
 
 
     def _createMainGrid(self):

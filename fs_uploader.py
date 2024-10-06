@@ -10,7 +10,21 @@ import hashlib
 import configparser
 
 class Configuration:
-    def __init__(self,config_filepath) -> None:
+    def __init__(self) -> None:
+        self.host = None
+        self.port = None
+        self.user = None
+        self.password = None
+        self.remote_dir = None
+        self.local_dir = None
+        self.swiss_timing = None
+        self.replace_isu = None
+        self.comp_name = None
+        self.comp_start = None
+        self.comp_end = None
+        self.move_pdf = None
+
+    def from_ini(self,config_filepath) -> None:
         config_obj = configparser.RawConfigParser()
         config_obj.read(config_filepath)
 

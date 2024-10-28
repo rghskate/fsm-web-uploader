@@ -19,9 +19,6 @@ class Configuration:
         self.local_dir = None
         self.swiss_timing = None
         self.replace = None
-        # self.comp_name = None
-        # self.comp_start = None
-        # self.comp_end = None
         self.move_pdf = None
 
     def from_ini(self,config_filepath) -> None:
@@ -290,7 +287,6 @@ def main():
                         if os.path.splitext(file)[1] == '.htm':
                             replacements.fillna('',inplace=True)
                             replace_text(file,replacements['OldText'],replacements['NewText'])
-                        # edit_header_image(file, config.comp_start, config.comp_end, config.comp_name)
 
                 if manual_time is not None:
                     test_time = manual_time

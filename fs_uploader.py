@@ -18,10 +18,10 @@ class Configuration:
         self.remote_dir = None
         self.local_dir = None
         self.swiss_timing = None
-        self.replace_isu = None
-        self.comp_name = None
-        self.comp_start = None
-        self.comp_end = None
+        self.replace = None
+        # self.comp_name = None
+        # self.comp_start = None
+        # self.comp_end = None
         self.move_pdf = None
 
     def from_ini(self,config_filepath) -> None:
@@ -36,6 +36,13 @@ class Configuration:
         self.remote_dir = config_obj.get('Directories','Remote')
         
         self.local_dir = os.path.abspath(os.path.normpath(config_obj.get('Directories','Local')))
+
+        try:
+            self.replace = os.path.abspath(os.path.normpath(config_obj.get('Edits','ReplacementList')))
+            if self.replace == "":
+                self.replace = None
+        except configparser.NoOptionError:
+            self.replace = None
         
         try:
             swiss_timing = config_obj.get('Directories','SwissTiming')
@@ -44,16 +51,16 @@ class Configuration:
         except configparser.NoOptionError:
             self.swiss_timing = r'C:\SwissTiming\OVR\FSManager'
 
-        try:
-            isu = config_obj.get('Edits','ReplaceIsu')
-            if isu == "":
-                self.replace_isu = None
-        except configparser.NoOptionError:
-            self.replace_isu = None
+        # try:
+        #     isu = config_obj.get('Edits','ReplaceIsu')
+        #     if isu == "":
+        #         self.replace_isu = None
+        # except configparser.NoOptionError:
+        #     self.replace_isu = None
 
-        self.comp_name = config_obj.get('Edits','CompetitionDisplayName')
-        self.comp_start = config_obj.get('Edits','StartDate')
-        self.comp_end = config_obj.get('Edits','EndDate')
+        # self.comp_name = config_obj.get('Edits','CompetitionDisplayName')
+        # self.comp_start = config_obj.get('Edits','StartDate')
+        # self.comp_end = config_obj.get('Edits','EndDate')
 
         self.move_pdf = config_obj.getboolean('Management','MovePDF')
 
@@ -72,9 +79,7 @@ Remote directory: {self.remote_dir}
 Swiss Timing Directory: {self.swiss_timing}
 
 --- Edits ---
-Competition display name: {self.comp_name}
-Competition start date: {self.comp_start}
-Competition end date: {self.comp_end}
+Text replacement file: {self.replace}
 
 --- Management ---
 Move PDFs to website folder: {self.move_pdf}
@@ -152,33 +157,43 @@ def ftp_connect(hostname,user,password,remote_dir,port=""):
 
     return ftp
 
-def edit_header_image(filepath, start_date, end_date, comp_name):
+# def edit_header_image(filepath, start_date, end_date, comp_name):
+#     with open(filepath,'r') as f:
+#         data = f.read()
+
+#     initial_data = data
+
+#     data = data.replace('$COMP_NAME',comp_name)
+#     data = data.replace('$START_DATE',start_date)
+#     data = data.replace('$END_DATE',end_date)
+
+#     if data != initial_data:
+#         with open(filepath, 'w') as f:
+#             f.write(data)
+
+def replace_text(filepath:str, old_text:list[str], new_text:list[str]):
     with open(filepath,'r') as f:
-        data = f.read()
-
-    initial_data = data
-
-    data = data.replace('$COMP_NAME',comp_name)
-    data = data.replace('$START_DATE',start_date)
-    data = data.replace('$END_DATE',end_date)
-
-    if data != initial_data:
-        with open(filepath, 'w') as f:
-            f.write(data)
-
-def remove_isu(filepath, replace='GBR'):
-    flag_find = '<img src="../flags/ISU.GIF">'
-    flag_replace = f'<img src="../flags/{replace}.GIF">'
-    noc_find = 'ISU'
-    noc_replace = f'{replace}'
-
-    with open(filepath, 'r') as f:
-        data = f.read()
+        page = f.read()
     
-    data = data.replace(flag_find, flag_replace).replace(noc_find,noc_replace)
+    for i, entry in enumerate(old_text):
+        page = page.replace(entry, new_text[i])
 
     with open(filepath, 'w') as f:
-        f.write(data)
+        f.write(page)
+
+# def remove_isu(filepath, replace='GBR'):
+#     flag_find = '<img src="../flags/ISU.GIF">'
+#     flag_replace = f'<img src="../flags/{replace}.GIF">'
+#     noc_find = 'ISU'
+#     noc_replace = f'{replace}'
+
+#     with open(filepath, 'r') as f:
+#         data = f.read()
+    
+#     data = data.replace(flag_find, flag_replace).replace(noc_find,noc_replace)
+
+#     with open(filepath, 'w') as f:
+#         f.write(data)
 
 def hash_sha256(filepath:str):
     try:
@@ -228,7 +243,8 @@ def main():
 
     sleep_interval = int(args.sleep_interval)
 
-    config = Configuration(os.path.normpath(os.path.abspath(args.CONFIG)))
+    config = Configuration()
+    config.from_ini(os.path.normpath(os.path.abspath(args.CONFIG)))
 
     if args.dry_run is True:
         print(config)
@@ -286,11 +302,20 @@ def main():
     segments.loc[:,'segment_judges_link'] = segments.loc[:,'segment_link'].str.replace('.htm','OF.htm')
 
     # Remove references to ISU from judges pages
-    if config.replace_isu is not None:
-        for page in segments.loc[:,'segment_judges_link']:
-            remove_isu(page, replace=config.replace_isu)
+    # if config.replace_isu is not None:
+    #     for page in segments.loc[:,'segment_judges_link']:
+    #         remove_isu(page, replace=config.replace_isu)
 
     ftp = ftp_connect(config.host, config.user, config.password, config.remote_dir, config.port)
+
+    if config.replace is not None:
+        try:
+            replacements = pd.read_csv(config.replace, dtype=str)
+        except Exception as e:
+            print('Could not open replacements file with following error:')
+            print(e)
+            print('Exiting...')
+            exit(1)
 
     ## Main loop
     filetable_current = pd.DataFrame({'filepaths':'',
@@ -303,9 +328,12 @@ def main():
                 copy_pdfs(config.swiss_timing, config.local_dir)
                 local_filelist = pd.Series(os.listdir('.'))
 
-                for file in local_filelist:
-                    if os.path.splitext(file)[1] == '.htm':
-                        edit_header_image(file, config.comp_start, config.comp_end, config.comp_name)
+                if config.replace is not None:
+                    for file in local_filelist:
+                        if os.path.splitext(file)[1] == '.htm':
+                            replacements.fillna('',inplace=True)
+                            replace_text(file,replacements['OldText'],replacements['NewText'])
+                        # edit_header_image(file, config.comp_start, config.comp_end, config.comp_name)
 
                 if manual_time is not None:
                     test_time = manual_time

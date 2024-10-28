@@ -51,17 +51,6 @@ class Configuration:
         except configparser.NoOptionError:
             self.swiss_timing = r'C:\SwissTiming\OVR\FSManager'
 
-        # try:
-        #     isu = config_obj.get('Edits','ReplaceIsu')
-        #     if isu == "":
-        #         self.replace_isu = None
-        # except configparser.NoOptionError:
-        #     self.replace_isu = None
-
-        # self.comp_name = config_obj.get('Edits','CompetitionDisplayName')
-        # self.comp_start = config_obj.get('Edits','StartDate')
-        # self.comp_end = config_obj.get('Edits','EndDate')
-
         self.move_pdf = config_obj.getboolean('Management','MovePDF')
 
     def __str__(self) -> str:
@@ -157,20 +146,6 @@ def ftp_connect(hostname,user,password,remote_dir,port=""):
 
     return ftp
 
-# def edit_header_image(filepath, start_date, end_date, comp_name):
-#     with open(filepath,'r') as f:
-#         data = f.read()
-
-#     initial_data = data
-
-#     data = data.replace('$COMP_NAME',comp_name)
-#     data = data.replace('$START_DATE',start_date)
-#     data = data.replace('$END_DATE',end_date)
-
-#     if data != initial_data:
-#         with open(filepath, 'w') as f:
-#             f.write(data)
-
 def replace_text(filepath:str, old_text:list[str], new_text:list[str]):
     with open(filepath,'r') as f:
         page = f.read()
@@ -180,20 +155,6 @@ def replace_text(filepath:str, old_text:list[str], new_text:list[str]):
 
     with open(filepath, 'w') as f:
         f.write(page)
-
-# def remove_isu(filepath, replace='GBR'):
-#     flag_find = '<img src="../flags/ISU.GIF">'
-#     flag_replace = f'<img src="../flags/{replace}.GIF">'
-#     noc_find = 'ISU'
-#     noc_replace = f'{replace}'
-
-#     with open(filepath, 'r') as f:
-#         data = f.read()
-    
-#     data = data.replace(flag_find, flag_replace).replace(noc_find,noc_replace)
-
-#     with open(filepath, 'w') as f:
-#         f.write(data)
 
 def hash_sha256(filepath:str):
     try:
@@ -301,10 +262,6 @@ def main():
     segments = pd.DataFrame(segments,columns=['date_obj','category','segment','segment_link'])
     segments.loc[:,'segment_judges_link'] = segments.loc[:,'segment_link'].str.replace('.htm','OF.htm')
 
-    # Remove references to ISU from judges pages
-    # if config.replace_isu is not None:
-    #     for page in segments.loc[:,'segment_judges_link']:
-    #         remove_isu(page, replace=config.replace_isu)
 
     ftp = ftp_connect(config.host, config.user, config.password, config.remote_dir, config.port)
 

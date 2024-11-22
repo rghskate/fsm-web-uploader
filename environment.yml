@@ -4,4 +4,6 @@ dependencies:
   - pandas
   - beautifulsoup4
   - lxml
-  - pyqt
+  - pip
+  - pip:
+    - PyQt6

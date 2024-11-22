@@ -1,98 +1,64 @@
 #!/usr/bin/env python3
 
 import sys
+import os
 
-from PyQt5.QtGui import QIcon
-from PyQt5.QtCore import pyqtSlot
+from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import pyqtSlot
 
-from PyQt5.QtWidgets import (
+from PyQt6.QtWidgets import (
     QApplication,
-    QLabel,
-    QMainWindow,
-    QStatusBar,
-    QToolBar,
+    # QLabel,
+    # QMainWindow,
+    # QStatusBar,
+    # QToolBar,
     QWidget,
-    QGroupBox,
+    # QGroupBox,
     QGridLayout,
     QPushButton,
     QVBoxLayout,
+    QHBoxLayout,
+    QFileDialog,
     QLineEdit
     )
 
-
-class Window(QMainWindow):
+class Application(QWidget):
     def __init__(self):
-        super().__init__(parent=None)
-        self.title = 'FSM Uploader'
-        self.top_offset = 100
-        self.left_offset = 100
-        self.width = 640
-        self.height = 480
-        self.centralWidget = QWidget(self)
-        self.setCentralWidget(self.centralWidget)
-        self._initUI()
-        # self.setCentralWidget(QLabel("I'm the Central Widget"))
+        super().__init__()
+        self.init_ui()
 
-    def _initUI(self):
-        self.setWindowTitle(self.title)
-        self.setGeometry(self.left_offset, self.top_offset, self.width, self.height)
+    def init_ui(self):
+        grid_layout = QGridLayout()
 
-        self._createMenu()
-        self._createStatusBar()
-        self._createFileChooser()
-        self._createMainGrid()
+        self.text_box = QLineEdit(self)
+        self.text_box.setPlaceholderText("Enter file path...")
+        self.browse_button = QPushButton("Browse", self)
 
-        windowLayout = QVBoxLayout()
-        windowLayout.addWidget(self.horizontalGroupBox)
-        self.centralWidget.setLayout(windowLayout)
+        grid_layout.addWidget(self.text_box, 0,0,1,2)
+        grid_layout.addWidget(self.browse_button,0,0,1,1)
 
-        self.show()
+        main_layout.addLayout(file_layout)
 
+        self.setLayout(main_layout)
+
+        self.browse_button.clicked.connect(self.open_file_chooser)
+        self.setWindowTitle("FS Manager Web Uploader")
+        self.setGeometry(100, 100, 400, 100)
     
-    def _createMenu(self):
-        menu = self.menuBar().addMenu("&Menu")
-        menu.addAction("&Exit", self.close)
-
-    def _createStatusBar(self):
-        status = QStatusBar()
-        status.showMessage("I'm the Status Bar")
-        self.setStatusBar(status)
-
-
-    def _createFileChooser(self):
-        layout = QGridLayout()
-        layout.setColumnStretch(2,4)
-        layout.addWidget(QLineEdit(self),0,0)
-        layout.addWidget(QPushButton('...'))
-        
-        self.filepathBoxContainer = QVBoxLayout().addWidget().setLayout(layout)
-
-
-    def _createMainGrid(self):
-        self.horizontalGroupBox = QGroupBox("Grid")
-        layout = QGridLayout()
-        layout.setColumnStretch(1, 4)
-        layout.setColumnStretch(2, 4)
-        
-        layout.addWidget(self.filepathBoxContainer,0,0)
-        layout.addWidget(QPushButton('2'),0,1)
-        layout.addWidget(QPushButton('3'),0,2)
-        layout.addWidget(QPushButton('4'),1,0)
-        layout.addWidget(QPushButton('5'),1,1)
-        layout.addWidget(QPushButton('6'),1,2)
-        layout.addWidget(QPushButton('7'),2,0)
-        layout.addWidget(QPushButton('8'),2,1)
-        layout.addWidget(QPushButton('9'),2,2)
-        
-        self.horizontalGroupBox.setLayout(layout)
-
-        
+    def open_file_chooser(self):
+        # Open file dialog and get the selected file path
+        options = QFileDialog.Option.DontUseCustomDirectoryIcons
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select a file", "", "Config Files (*.ini);;All Files (*)", options=options
+        )
+        if file_path:
+            self.text_box.setText(file_path)
 
 def main():
-    app = QApplication([])
-    execute = Window()
+    app = QApplication(sys.argv)
+    window = Application()
+    window.show()
     sys.exit(app.exec())
-
 
 if __name__ == "__main__":
     main()

@@ -5,7 +5,6 @@ import os
 import shutil
 from ftplib import FTP, all_errors
 from time import sleep
-import argparse
 import hashlib
 import configparser
 
@@ -20,6 +19,7 @@ class Configuration:
         self.swiss_timing = None
         self.replace = None
         self.move_pdf = None
+        self.save_file = None
 
     def from_ini(self,config_filepath) -> None:
         config_obj = configparser.RawConfigParser()
@@ -31,7 +31,6 @@ class Configuration:
         self.password = config_obj.get('FTP','Password')
 
         self.remote_dir = config_obj.get('Directories','Remote')
-        
         self.local_dir = os.path.abspath(os.path.normpath(config_obj.get('Directories','Local')))
 
         try:
@@ -42,13 +41,25 @@ class Configuration:
             self.replace = None
         
         try:
-            swiss_timing = config_obj.get('Directories','SwissTiming')
-            if swiss_timing == "":
+            self.swiss_timing = config_obj.get('Directories','SwissTiming')
+            if self.swiss_timing == "":
                 self.swiss_timing = r'C:\SwissTiming\OVR\FSManager'
         except configparser.NoOptionError:
             self.swiss_timing = r'C:\SwissTiming\OVR\FSManager'
 
-        self.move_pdf = config_obj.getboolean('Management','MovePDF')
+        try:
+            self.save_file = config_obj.get('Management','SaveFile')
+            if self.save_file == "":
+                self.save_file = None
+        except configparser.NoOptionError:
+            self.save_file = None
+
+        try:
+            self.move_pdf = config_obj.getboolean('Management','MovePDF')
+            if self.move_pdf == "":
+                self.move_pdf = False
+        except (configparser.NoOptionError, ValueError):
+            self.move_pdf = False
 
     def __str__(self) -> str:
         return f'''Current config:
@@ -69,6 +80,7 @@ Text replacement file: {self.replace}
 
 --- Management ---
 Move PDFs to website folder: {self.move_pdf}
+Save file location: {self.save_file}
 '''
     
 def flatten(lst):
@@ -185,58 +197,20 @@ def upload_updated_files(ftp:FTP, current_filetable:pd.DataFrame, old_filetable:
     
     return update_counter
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('CONFIG',help='Configuration file following template example.')
-    parser.add_argument('--dry-run','-d',action='store_true',help='Print config and exit without connecting.')
-    parser.add_argument('--keepalive','-k',help='Time in seconds to wait between sending keepalive signals to the FTP server. Defaults to 780 (13 minutes).',default=780)
-    parser.add_argument('--sleep-interval','-s',help='Time in seconds to wait between update cycles. Defaults to 5.',default=5)
-    parser.add_argument('--time','-t',help='Set a manual time to check segments against. Must be set in "YYYY-MM-DD HH:MM:SS" format.')
-    args = parser.parse_args()
-
-    if args.time is not None:
-        manual_time = datetime.strptime(args.time,'%Y-%m-%d %H:%M:%S')
-    else:
-        manual_time = None
-
-    sleep_interval = int(args.sleep_interval)
-
-    config = Configuration()
-    config.from_ini(os.path.normpath(os.path.abspath(args.CONFIG)))
-
-    if args.dry_run is True:
-        print(config)
-        exit(0)
-
-    keepalive_interval = int(args.keepalive)
-    os.chdir(config.local_dir)
-
-    try:
-        with open(os.path.join(config.local_dir,'index.htm'),'r') as f:
-            html_content = f.read()
-    except Exception as e:
-        print('Could not open index file with the following error:')
-        print(e)
-        exit(1)
-
-
+def verify_file_status(index_page:str):
     copyright_notices = [r'&copy;',r'<a href="http://www.isu.org">International Skating Union</a>', r'All Rights Reserved.']
 
-    if not all(substring in html_content for substring in copyright_notices):
-        print('ISU copyright notice could not be found in index.htm! Either this is the wrong folder or you have been modifying the templates extensively.\nRestore the default copyright notice to the generated site to continue.')
-        exit(1)
+    if not all(substring in index_page for substring in copyright_notices):
+        return False
+    else:
+        return True
+        
 
-    soup = BeautifulSoup(html_content,'lxml')
+def find_results_table(html_soup:BeautifulSoup, tag_name:str='table', attributes:dict={'width':'70%'}, target_table_index:int=0) -> list:
+    results_table = html_soup.find_all(tag_name,attributes)[target_table_index]
+    return results_table
 
-    try:
-        results_table = soup.find_all('table',{'width':'70%'})[0]
-    except IndexError:
-        results_table = soup.find_all('table',{'class':'MainTables'})[1]
-    except Exception as e:
-        print('Failed to find timetable with following error:')
-        print(e)
-        exit(1)
-
+def build_segment_table(results_table: BeautifulSoup):
     rows:list = results_table.find_all('tr')
     rows.pop(0)
 
@@ -259,23 +233,15 @@ def main():
     segments = pd.DataFrame(segments,columns=['date_obj','category','segment','segment_link'])
     segments.loc[:,'segment_judges_link'] = segments.loc[:,'segment_link'].str.replace('.htm','OF.htm')
 
+    return segments
 
-    ftp = ftp_connect(config.host, config.user, config.password, config.remote_dir, config.port)
-
-    if config.replace is not None:
-        try:
-            replacements = pd.read_csv(config.replace, dtype=str)
-        except Exception as e:
-            print('Could not open replacements file with following error:')
-            print(e)
-            print('Exiting...')
-            exit(1)
-
-    ## Main loop
-    filetable_current = pd.DataFrame({'filepaths':'',
-                                          'hashes':''}, index = [0])
-    try:
-        while True:
+def update_ftp_server(ftp:FTP,filetable_current:pd.DataFrame, config:Configuration,
+                      replacements:pd.DataFrame, segments:pd.DataFrame,
+                      manual_time:datetime|None=None, keepalive_interval:int=5,
+                      sleep_interval:int=5) -> pd.DataFrame:
+    run = True
+    time_last_update = datetime.now()
+    while run == True:
             try:
                 overprint('Checking for changes...')
                 filetable_previous = filetable_current
@@ -313,12 +279,9 @@ def main():
                 sleep(sleep_interval)
             except all_errors:
                 ftp = ftp_connect(config.host, config.user, config.password, config.remote_dir, config.port)
-    except KeyboardInterrupt:
-        print("\n\nClosing...")
-    
-    ftp.quit()
-    print('Connection closed.')
-    exit(0)
-
-if __name__ == "__main__":
-    main()
+            except KeyboardInterrupt:
+                return filetable_current
+            except Exception as e:
+                print('Encountered unxpected exception during update with following error message:')
+                print(e)
+                return filetable_current

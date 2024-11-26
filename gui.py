@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
 import os
+import sys
+
 from PyQt6.QtGui import QIcon, QAction
 from PyQt6.QtCore import pyqtSlot
-
-import sys
 
 from PyQt6.QtWidgets import (
     QApplication,
@@ -125,6 +125,9 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction(close_action)
 
+        self.setWindowTitle("FS Manager Web Uploader")
+        self.setGeometry(100, 100, 800, 100)
+
         # Position UI Elements
         ## FTP Parameters
         self.ti_hostname, self.tb_hostname = self.create_text_entry('Hostname','e.g., 192.168.0.1, https://example.com', stylesheet=default_stylesheet)
@@ -154,6 +157,7 @@ class MainWindow(QMainWindow):
         self.ti_movepdf.setStyleSheet(default_stylesheet)
         grid_management.addWidget(self.ti_movepdf, target_row_management, 0, 1, 1)
         self.cb_movepdf = QCheckBox()
+        self.cb_movepdf.setChecked(True)
         grid_management.addWidget(self.cb_movepdf, target_row_management, 1, 1, 1)
         target_row_management += 1
         self.ti_save_file, self.tb_save_file, self.bb_save_file = self.create_file_chooser('Save File','save state file',stylesheet=default_stylesheet)
@@ -171,15 +175,13 @@ class MainWindow(QMainWindow):
 
         # Connect buttons
         self.bb_local_dir.clicked.connect(lambda: self.open_file_chooser(self.tb_local_dir, filemode=QFileDialog.FileMode.Directory, options=[QFileDialog.Option.ShowDirsOnly], dialog_text='Select a directory'))
+        self.bb_swiss_timing.clicked.connect(lambda: self.open_file_chooser(self.tb_swiss_timing, filemode=QFileDialog.FileMode.Directory, options=[QFileDialog.Option.ShowDirsOnly], dialog_text='Select FSM directory'))
         self.bb_edits.clicked.connect(lambda: self.open_file_chooser(self.tb_edits, filemode=QFileDialog.FileMode.ExistingFile, dialog_text='Select a file', file_filters=['Edit list files (*.csv)']))
         self.bb_save_file.clicked.connect(lambda: self.open_file_chooser(self.tb_save_file, filemode=QFileDialog.FileMode.AnyFile, dialog_text='Select a file or enter a path', file_filters=['Save states (*.csv)']))
-        self.bb_swiss_timing.clicked.connect(lambda: self.open_file_chooser(self.tb_swiss_timing, filemode=QFileDialog.FileMode.Directory, options=[QFileDialog.Option.ShowDirsOnly], dialog_text='Select a file or enter a path', file_filters=['Save states (*.csv)']))
-        self.setWindowTitle("FS Manager Web Uploader")
-        self.setGeometry(100, 100, 800, 100)
     
     def open_file_chooser(self, target_text_box: QLineEdit, file_filters:list[str]|None=None, options:list[QFileDialog.Option]|None=None,
                             dialog_text:str='Select a file', filemode:QFileDialog.FileMode=QFileDialog.FileMode.AnyFile):
-        dialog = QFileDialog()
+        dialog = QFileDialog(caption=dialog_text)
         
         if file_filters is None:
             file_filters = []
@@ -187,6 +189,8 @@ class MainWindow(QMainWindow):
         file_filters = ';;'.join(file_filters)
         dialog.setNameFilter(file_filters)
         
+        # dialog.setLabelText(dialog_text)
+
         if options is None:
             options = []
         options.extend([QFileDialog.Option.DontUseCustomDirectoryIcons])
@@ -221,6 +225,7 @@ class MainWindow(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
+    app.setStyle('Fusion')
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

@@ -60,6 +60,31 @@ class Configuration:
                 self.move_pdf = False
         except (configparser.NoOptionError, ValueError):
             self.move_pdf = False
+    
+    def to_ini(self, path:str):
+        config = configparser.RawConfigParser()
+        config['FTP'] = {
+                'Hostname':self.host,
+                'Port':self.port,
+                'Username':self.user,
+                'Password':self.password
+            }
+        config['Directories'] = {
+                'Remote':self.remote_dir,
+                'Local':self.local_dir,
+                'SwissTiming':self.swiss_timing,
+            }
+        config['Edits'] = {
+                'ReplacementList':self.replace,
+            }
+        config['Management'] = {
+                'MovePDF':self.move_pdf,
+                'SaveFile':self.save_file,
+            }
+        if path[-4:] != '.ini':
+            path += '.ini'
+        with open(path,'w') as f:
+            config.write(f)
 
     def __str__(self) -> str:
         return f'''Current config:

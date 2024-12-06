@@ -3,6 +3,8 @@
 import os
 import sys
 
+import fs_uploader as fs
+
 from PyQt6.QtGui import QIcon, QAction
 from PyQt6.QtCore import pyqtSlot
 
@@ -17,7 +19,8 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QGroupBox,
     QTextBrowser,
-    QMainWindow
+    QMainWindow,
+    QMessageBox
     )
 
 class MainWindow(QMainWindow):
@@ -63,7 +66,7 @@ class MainWindow(QMainWindow):
         grid_layout.addWidget(button, top_left_row, top_left_col+(columns-1), 1, 1)
 
         return top_left_row + 2
-    
+
     def init_ui(self):
         default_stylesheet = 'font-weight: normal; font-size: 11px'
         master_grid_layout = QGridLayout()
@@ -114,9 +117,9 @@ class MainWindow(QMainWindow):
         menu_bar = self.menuBar()
         ## Create file menu
         file_menu = menu_bar.addMenu('File')
-        config_open = QAction('Open',self)
+        config_open = QAction('Load configuration...',self)
         config_open.triggered.connect(self.config_read)
-        config_save = QAction('Save',self)
+        config_save = QAction('Save configuration...',self)
         config_save.triggered.connect(self.config_write)
         close_action = QAction('Exit', self)
         close_action.triggered.connect(self.close)
@@ -208,20 +211,76 @@ class MainWindow(QMainWindow):
             
         if file_path is not None:
             target_text_box.setText(os.path.normpath(file_path[0]))
+
+    def set_field_values(self,
+                         field_hostname:QLineEdit, field_port:QLineEdit, field_username:QLineEdit, field_password:QLineEdit,
+                         field_local_dir:QLineEdit, field_remote_dir:QLineEdit, field_swiss_timing_dir:QLineEdit,
+                         field_edits:QLineEdit,
+                         field_move_pdf:QCheckBox, field_save_file:QLineEdit,
+                         config:fs.Configuration):
+        field_hostname.setText(config.host)
+        field_port.setText(config.port)
+        field_username.setText(config.user)
+        field_password.setText(config.password)
+        field_local_dir.setText(config.local_dir)
+        field_remote_dir.setText(config.remote_dir)
+        field_swiss_timing_dir.setText(config.swiss_timing)
+        field_edits.setText(config.replace)
+        field_move_pdf.setChecked(config.move_pdf)
+        field_save_file.setText(config.save_file)
+    
+    def get_field_values(self,
+                         field_hostname:QLineEdit, field_port:QLineEdit, field_username:QLineEdit, field_password:QLineEdit,
+                         field_local_dir:QLineEdit, field_remote_dir:QLineEdit, field_swiss_timing_dir:QLineEdit,
+                         field_edits:QLineEdit,
+                         field_move_pdf:QCheckBox, field_save_file:QLineEdit):
+        config = fs.Configuration()
+        config.host = field_hostname.text()
+        config.port = field_port.text()
+        config.user = field_username.text()
+        config.password = field_password.text()
+        config.local_dir = field_local_dir.text()
+        config.remote_dir = field_remote_dir.text()
+        config.swiss_timing = field_swiss_timing_dir.text()
+        config.replace = field_edits.text()
+        config.move_pdf = field_move_pdf.isChecked()
+        config.save_file = field_save_file.text()
+
+        return config
         
     def config_read(self):
         file_path, _ = QFileDialog.getOpenFileName(
             self, 'Load configuration file', '', 'Config files (*.ini);;All files (*)'
         )
         if file_path:
-            print('Hooray!')
+            config = fs.Configuration()
+            try:
+                config.from_ini(file_path)
+                self.set_field_values(self.tb_hostname, self.tb_port, self.tb_username, self.tb_password,
+                                    self.tb_local_dir, self.tb_remote_dir, self.tb_swiss_timing,
+                                    self.tb_edits,
+                                    self.cb_movepdf, self.tb_save_file,
+                                    config)
+            except Exception as e:
+                message = QMessageBox()
+                message.setText(f'Error encountered when loading:\n---\n{e}\n---')
+                message.exec()
     
     def config_write(self):
         file_path, _ = QFileDialog.getSaveFileName(
             self, 'Load configuration file', '', 'Config files (*.ini);;All files (*)'
         )
         if file_path:
-            print('Hooray!')
+            try:
+                config = self.get_field_values(self.tb_hostname, self.tb_port, self.tb_username, self.tb_password,
+                                    self.tb_local_dir, self.tb_remote_dir, self.tb_swiss_timing,
+                                    self.tb_edits,
+                                    self.cb_movepdf, self.tb_save_file)
+                config.to_ini(file_path)
+            except Exception as e:
+                message = QMessageBox()
+                message.setText(f'Error encountered when saving:\n---\n{e}\n---')
+                message.exec()
 
 def main():
     app = QApplication(sys.argv)

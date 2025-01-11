@@ -7,6 +7,8 @@ from ftplib import FTP, all_errors
 from time import sleep
 import hashlib
 import configparser
+import sys
+import traceback
 
 class Configuration:
     def __init__(self) -> None:
@@ -107,15 +109,29 @@ Text replacement file: {self.replace}
 Move PDFs to website folder: {self.move_pdf}
 Save file location: {self.save_file}
 '''
+
+def return_from_generator_cli(gen, args:list):
+    itr = gen(*args)
+    while True:
+        try:
+            string, overwrite = next(itr)
+            if overwrite is True:
+                overprint(string)
+            else:
+                print(string)
+        except StopIteration as e:
+            return_value = e.value
+            break
+    return return_value
     
-def flatten(lst):
-    for item in lst:
-        if isinstance(item, list):
-            yield from flatten(item)
-        else:
-            yield item
 
 def flatten_list(lst):
+    def flatten(lst):
+        for item in lst:
+            if isinstance(item, list):
+                yield from flatten(item)
+            else:
+                yield item
     return list(flatten(lst))
 
 def copy_pdfs(swiss_timing_folder,local_dir):
@@ -125,21 +141,22 @@ def copy_pdfs(swiss_timing_folder,local_dir):
         for file in files:
             abs_path = os.path.abspath(os.path.join(root, file))
             file_paths.append(abs_path)
-    pdfs = [pdf for pdf in file_paths if 'JudgesDetailsperSkater.pdf' in pdf]
+    target_files = ['JudgesDetailsperSkater.pdf','StartListwithTimes.pdf']
+    pdfs = [pdf for pdf in file_paths if any(target_file in pdf for target_file in target_files)]
     
-    currently_present_pdfs = [file for file in os.listdir(local_dir) if 'JudgesDetailsperSkater.pdf' in file]
+    currently_present_pdfs = [file for file in os.listdir(local_dir) if any(target_file in file for target_file in target_files)]
 
     for file in pdfs:
         if os.path.basename(file) not in currently_present_pdfs:
-            overprint(f'Copying "{file}" to "{local_dir}"...')
+            yield f'Copying "{file}" to "{local_dir}"...', True
             shutil.copyfile(os.path.normpath(file), os.path.normpath(os.path.join(local_dir,os.path.basename(file))))
     
 def overprint(content):
     print(end='\x1b[2K')
-    print(content,end='\r')
+    print(content, end='\r')
 
-def ftp_connect(hostname,user,password,remote_dir,port=""):
-    print(f'Connecting to FTP site {hostname}:{port} as {user}...')
+def ftp_connect(hostname,user,password,remote_dir,port="",stop_sequence:str='Ctrl-C'):
+    yield f'Connecting to FTP site {hostname}:{port} as {user}...', False
 
     if port != "":
         port = "".join([':',port])
@@ -147,36 +164,36 @@ def ftp_connect(hostname,user,password,remote_dir,port=""):
     try:
         ftp = FTP(f'{hostname}{port}')
     except Exception as e:
-        print('Connection to remote failed with the following error:\n')
-        print(e)
-        print('Trying connecting without port.')
+        yield 'Connection to remote failed with the following error:\n', False
+        yield e, False
+        yield 'Trying connecting without port.', False
         try:
             ftp = FTP(f'{hostname}')
         except Exception as e:
-            print('\nPlease review your connection settings in your environment file.')
-            exit(1)
+            yield '\nPlease review your connection settings in your environment file.', False
+            raise ConnectionError()
     
     try:
         ftp.login(user=user, passwd=password)
     except Exception as e:
-        print('Authentication failed with the following error:\n')
-        print(e)
-        print('\nPlease review your connection settings in your environment file.')
-        exit(1)
+        yield 'Authentication failed with the following error:\n', False
+        yield e, False
+        yield '\nPlease review your connection settings in your environment file.', False
+        raise ConnectionError()
     
-    print('Connection successful! Server returned following welcome message:\n')
-    print(ftp.getwelcome())
+    yield 'Connection successful! Server returned following welcome message:\n', False
+    yield ftp.getwelcome(), False
     
     try:
         ftp.cwd(remote_dir)
     except Exception as e:
-        print('Could not find directory on remote. Server returned following error:\n')
-        print(e)
-        print('\nPlease review your connection settings in your environment file.')
-        exit(1)
+        yield 'Could not find directory on remote. Server returned following error:\n', False
+        yield e, False
+        yield '\nPlease review your connection settings in your environment file.', False
+        raise ConnectionError()
     
-    print('\nMonitoring local directory for changes...')
-    print('\nTo close connection, press Ctrl-C.\n')
+    yield '\nMonitoring local directory for changes...', False
+    yield f'\nTo close connection, press {stop_sequence}.\n', False
 
     return ftp
 
@@ -210,14 +227,14 @@ def upload_updated_files(ftp:FTP, current_filetable:pd.DataFrame, old_filetable:
         for path in brand_new_files:
             with open(path,'rb') as file:
                 ftp.storbinary(f'STOR {path}', file)
-                overprint(f'Updated {path} on remote')
+                yield f'Updated {path} on remote', True
             update_counter += 1
 
     for i in range(0,len(comparable_files)):
         if comparable_files.loc[i,'hashes'] != old_filetable.loc[i,'hashes']:
             with open(comparable_files.loc[i,"filepaths"],'rb') as file:
                 ftp.storbinary(f'STOR {comparable_files.loc[i,"filepaths"]}', file)
-                overprint(f'Updated {comparable_files.loc[i,"filepaths"]} on remote')
+                yield f'Updated {comparable_files.loc[i,"filepaths"]} on remote', True
             update_counter += 1
     
     return update_counter
@@ -229,7 +246,6 @@ def verify_file_status(index_page:str):
         return False
     else:
         return True
-        
 
 def find_results_table(html_soup:BeautifulSoup, tag_name:str='table', attributes:dict={'width':'70%'}, target_table_index:int=0) -> list:
     results_table = html_soup.find_all(tag_name,attributes)[target_table_index]
@@ -262,15 +278,15 @@ def build_segment_table(results_table: BeautifulSoup):
 
 def update_ftp_server(ftp:FTP,filetable_current:pd.DataFrame, config:Configuration,
                       replacements:pd.DataFrame, segments:pd.DataFrame,
-                      manual_time:datetime|None=None, keepalive_interval:int=5,
-                      sleep_interval:int=5) -> pd.DataFrame:
+                      manual_time:datetime|None=None, sleep_interval:int=5,):
     run = True
     time_last_update = datetime.now()
     while run == True:
             try:
-                overprint('Checking for changes...')
+                yield 'Checking for changes...', True
                 filetable_previous = filetable_current
-                copy_pdfs(config.swiss_timing, config.local_dir)
+                for msg, dest in copy_pdfs(config.swiss_timing, config.local_dir):
+                    yield msg, dest
                 local_filelist = pd.Series(os.listdir('.'))
 
                 if config.replace is not None:
@@ -288,25 +304,20 @@ def update_ftp_server(ftp:FTP,filetable_current:pd.DataFrame, config:Configurati
                 filetable_current = pd.DataFrame({'filepaths':local_filelist[~local_filelist.isin(files_to_ignore)],
                                                 'hashes':local_filelist[~local_filelist.isin(files_to_ignore)].apply(hash_sha256)})
 
-                update_counter = upload_updated_files(ftp, filetable_current, filetable_previous)
+                update_counter = return_from_generator_cli(upload_updated_files, [ftp, filetable_current, filetable_previous])
 
                 if update_counter == 0:
-                    if (datetime.now()-time_last_update).total_seconds() >= keepalive_interval:
-                        overprint(f'Time since last update exceeds {int(keepalive_interval/60)} minutes. Sending keepalive signal...')
-                        ftp.cwd(config.remote_dir)
-                        time_last_update = datetime.now()
-                    else:
-                        overprint(f'Time since last update = {str(datetime.now()-time_last_update).split('.')[0]}')
+                    yield f'Time since last update = {str(datetime.now()-time_last_update).split('.')[0]}', True
                 else:
-                    overprint(f'Updated {update_counter} on last round.')
+                    yield f'Updated {update_counter} on last round.', True
                     time_last_update = datetime.now()
 
                 sleep(sleep_interval)
             except all_errors:
-                ftp = ftp_connect(config.host, config.user, config.password, config.remote_dir, config.port)
+                ftp = return_from_generator_cli(ftp_connect,[config.host, config.user, config.password, config.remote_dir, config.port])
             except KeyboardInterrupt:
                 return filetable_current
             except Exception as e:
-                print('Encountered unxpected exception during update with following error message:')
-                print(e)
+                yield 'Encountered unxpected exception during update with following error message:', True
+                yield traceback.print_exception(e), True
                 return filetable_current

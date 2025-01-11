@@ -6,7 +6,7 @@ import sys
 import fs_uploader as fs
 
 from PyQt6.QtGui import QIcon, QAction
-from PyQt6.QtCore import pyqtSlot
+from PyQt6.QtCore import QThread, pyqtSignal
 
 from PyQt6.QtWidgets import (
     QApplication,
@@ -18,10 +18,14 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QCheckBox,
     QGroupBox,
-    QTextBrowser,
+    QPlainTextEdit,
     QMainWindow,
     QMessageBox
     )
+
+class Uploader(QThread):
+    output_signal = pyqtSignal(str)
+    
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -167,7 +171,8 @@ class MainWindow(QMainWindow):
         target_row_management = self.position_file_chooser(grid_management, target_row_management, 0, self.ti_save_file, self.tb_save_file, self.bb_save_file)
 
         ## Output
-        self.output_feed = QTextBrowser()
+        self.output_feed = QPlainTextEdit()
+        self.output_feed.setReadOnly(True)
         grid_output.addWidget(self.output_feed)
 
         ## Run button
@@ -181,6 +186,7 @@ class MainWindow(QMainWindow):
         self.bb_swiss_timing.clicked.connect(lambda: self.open_file_chooser(self.tb_swiss_timing, filemode=QFileDialog.FileMode.Directory, options=[QFileDialog.Option.ShowDirsOnly], dialog_text='Select FSM directory'))
         self.bb_edits.clicked.connect(lambda: self.open_file_chooser(self.tb_edits, filemode=QFileDialog.FileMode.ExistingFile, dialog_text='Select a file', file_filters=['Edit list files (*.csv)']))
         self.bb_save_file.clicked.connect(lambda: self.open_file_chooser(self.tb_save_file, filemode=QFileDialog.FileMode.AnyFile, dialog_text='Select a file or enter a path', file_filters=['Save states (*.csv)']))
+        # self.run_button.clicked.connect(self.upload_files)
     
     def open_file_chooser(self, target_text_box: QLineEdit, file_filters:list[str]|None=None, options:list[QFileDialog.Option]|None=None,
                             dialog_text:str='Select a file', filemode:QFileDialog.FileMode=QFileDialog.FileMode.AnyFile):
@@ -211,6 +217,21 @@ class MainWindow(QMainWindow):
             
         if file_path is not None:
             target_text_box.setText(os.path.normpath(file_path[0]))
+
+    def closeEvent(self, a0):
+        reply = QMessageBox.question(
+            self,
+            "Save config",
+            "Do you want to save your configuration?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            self.config_write()
+            a0.accept()
+        else:
+            a0.accept()
 
     def set_field_values(self,
                          field_hostname:QLineEdit, field_port:QLineEdit, field_username:QLineEdit, field_password:QLineEdit,
@@ -281,9 +302,19 @@ class MainWindow(QMainWindow):
                 message = QMessageBox()
                 message.setText(f'Error encountered when saving:\n---\n{e}\n---')
                 message.exec()
+    
+    # def upload_files(self):
+    #     self.upload = QProcess(self)
+    #     self.upload.readyReadStandardOutput.connect(self.handle_stdout)
+    #     self.upload.readyReadStandardError.connect(self.handle_stderr)
+    #     self.upload.finished.connect(self.upload_interrupted)
+
+    #     self.upload.start()
 
 def main():
     app = QApplication(sys.argv)
+    svg_icon = QIcon('icon.svg')
+    app.setWindowIcon(svg_icon)
     app.setStyle('Fusion')
     window = MainWindow()
     window.show()

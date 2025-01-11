@@ -9,7 +9,6 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('CONFIG',help='Configuration file following template example.')
     parser.add_argument('--dry-run','-d',action='store_true',help='Print config and exit without connecting.')
-    parser.add_argument('--keepalive','-k',help='Time in seconds to wait between sending keepalive signals to the FTP server. Defaults to 780 (13 minutes).',default=780)
     parser.add_argument('--sleep-interval','-s',help='Time in seconds to wait between update cycles. Defaults to 5.',default=5)
     parser.add_argument('--time','-t',help='Set a manual time to check segments against. Must be set in "YYYY-MM-DD HH:MM:SS" format.')
     args = parser.parse_args()
@@ -28,7 +27,6 @@ def main():
         print(config)
         exit(0)
 
-    keepalive_interval = int(args.keepalive)
     os.chdir(config.local_dir)
 
     try:
@@ -55,7 +53,10 @@ def main():
 
     segments = fs.build_segment_table(results_table)
 
-    ftp = fs.ftp_connect(config.host, config.user, config.password, config.remote_dir, config.port)
+    try:
+        ftp = fs.return_from_generator_cli(fs.ftp_connect, [config.host, config.user, config.password, config.remote_dir, config.port])
+    except ConnectionError as e:
+        exit(1)
 
     if config.replace is not None:
         try:
@@ -79,9 +80,12 @@ def main():
                                               'hashes':''}, index = [0])
     
     ## Main loop
-    filetable_for_disk = fs.update_ftp_server(ftp, filetable_current, config,
-                                           replacements, segments,
-                                           manual_time, keepalive_interval, sleep_interval)
+    filetable_for_disk = fs.return_from_generator_cli(fs.update_ftp_server, [ftp, filetable_current, config,
+                                                                        replacements, segments,
+                                                                        manual_time, sleep_interval])
+    # filetable_for_disk = fs.update_ftp_server(ftp, filetable_current, config,
+    #                                        replacements, segments,
+    #                                        manual_time, sleep_interval)
     
     ftp.quit()
     print('Connection closed.')

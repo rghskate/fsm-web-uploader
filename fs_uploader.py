@@ -1,14 +1,14 @@
+# FSM Web Uploader: a simple program for uploading the web files produced by FS Manager software used in figure skating judging.
+#     Copyright (C) 2025  Robert Hayes
+
 from bs4 import BeautifulSoup
 from datetime import datetime
 import pandas as pd
 import os
 import shutil
-from ftplib import FTP, all_errors
-from time import sleep
+from ftplib import FTP
 import hashlib
 import configparser
-import sys
-import traceback
 
 class Configuration:
     def __init__(self) -> None:
@@ -110,6 +110,20 @@ Move PDFs to website folder: {self.move_pdf}
 Save file location: {self.save_file}
 '''
 
+def return_from_generator_gui(gen, emitter_target, args:list):
+    itr = gen(*args)
+    while True:
+        try:
+            string, _ = next(itr)
+            try:
+                emitter_target.output_signal.emit(string)
+            except TypeError:
+                emitter_target.output_signal.emit(f'{string}')
+        except StopIteration as e:
+            return_value = e.value
+            break
+    return return_value
+
 def return_from_generator_cli(gen, args:list):
     itr = gen(*args)
     while True:
@@ -123,7 +137,6 @@ def return_from_generator_cli(gen, args:list):
             return_value = e.value
             break
     return return_value
-    
 
 def flatten_list(lst):
     def flatten(lst):
@@ -155,7 +168,7 @@ def overprint(content):
     print(end='\x1b[2K')
     print(content, end='\r')
 
-def ftp_connect(hostname,user,password,remote_dir,port="",stop_sequence:str='Ctrl-C'):
+def ftp_connect(hostname,user,password,remote_dir,port="",stop_sequence:str='Spacebar'):
     yield f'Connecting to FTP site {hostname}:{port} as {user}...', False
 
     if port != "":
@@ -276,48 +289,43 @@ def build_segment_table(results_table: BeautifulSoup):
 
     return segments
 
-def update_ftp_server(ftp:FTP,filetable_current:pd.DataFrame, config:Configuration,
-                      replacements:pd.DataFrame, segments:pd.DataFrame,
-                      manual_time:datetime|None=None, sleep_interval:int=5,):
-    run = True
-    time_last_update = datetime.now()
-    while run == True:
-            try:
-                yield 'Checking for changes...', True
-                filetable_previous = filetable_current
-                for msg, dest in copy_pdfs(config.swiss_timing, config.local_dir):
-                    yield msg, dest
-                local_filelist = pd.Series(os.listdir('.'))
+def update_ftp_server(ftp:FTP, filetable_current:pd.DataFrame, config:Configuration,
+                      replacements:pd.DataFrame, segments:pd.DataFrame, time_last_update:datetime,
+                      manual_time:datetime|None=None,
+                      cli:bool=True, uploader_instance=None):
+    '''
+    Checks local filelist and pushes changes to FTP server based on checksum values of html files.
+    '''
+    yield 'Checking for changes...', True
+    filetable_previous = filetable_current
+    for msg, dest in copy_pdfs(config.swiss_timing, config.local_dir):
+        yield msg, dest
+    local_filelist = pd.Series(os.listdir('.'))
 
-                if config.replace is not None:
-                    for file in local_filelist:
-                        if os.path.splitext(file)[1] == '.htm':
-                            replacements.fillna('',inplace=True)
-                            replace_text(file,replacements['OldText'],replacements['NewText'])
+    if config.replace is not None:
+        for file in local_filelist:
+            if os.path.splitext(file)[1] == '.htm':
+                replacements.fillna('',inplace=True)
+                replace_text(file,replacements['OldText'],replacements['NewText'])
 
-                if manual_time is not None:
-                    test_time = manual_time
-                else:
-                    test_time = datetime.now()
-                files_to_ignore = segments['segment_judges_link'][segments['date_obj'] > test_time]
+    if manual_time is not None:
+        test_time = manual_time
+    else:
+        test_time = datetime.now()
+    files_to_ignore = segments['segment_judges_link'][segments['date_obj'] > test_time]
 
-                filetable_current = pd.DataFrame({'filepaths':local_filelist[~local_filelist.isin(files_to_ignore)],
-                                                'hashes':local_filelist[~local_filelist.isin(files_to_ignore)].apply(hash_sha256)})
+    filetable_current = pd.DataFrame({'filepaths':local_filelist[~local_filelist.isin(files_to_ignore)],
+                                    'hashes':local_filelist[~local_filelist.isin(files_to_ignore)].apply(hash_sha256)})
 
-                update_counter = return_from_generator_cli(upload_updated_files, [ftp, filetable_current, filetable_previous])
+    if cli is True:
+        update_counter = return_from_generator_cli(upload_updated_files, [ftp, filetable_current, filetable_previous])
+    else:
+        update_counter = return_from_generator_gui(upload_updated_files, uploader_instance, [ftp, filetable_current, filetable_previous])
 
-                if update_counter == 0:
-                    yield f'Time since last update = {str(datetime.now()-time_last_update).split('.')[0]}', True
-                else:
-                    yield f'Updated {update_counter} on last round.', True
-                    time_last_update = datetime.now()
-
-                sleep(sleep_interval)
-            except all_errors:
-                ftp = return_from_generator_cli(ftp_connect,[config.host, config.user, config.password, config.remote_dir, config.port])
-            except KeyboardInterrupt:
-                return filetable_current
-            except Exception as e:
-                yield 'Encountered unxpected exception during update with following error message:', True
-                yield traceback.print_exception(e), True
-                return filetable_current
+    if update_counter == 0:
+        yield f"Time since last update = {str(datetime.now()-time_last_update).split('.')[0]}", True
+    else:
+        yield f'Updated {update_counter} on last round.', True
+        time_last_update = datetime.now()
+            
+    return filetable_current, time_last_update

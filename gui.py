@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
 
+# FSM Web Uploader: a simple program for uploading the web files produced by FS Manager software used in figure skating judging.
+#     Copyright (C) 2025  Robert Hayes
+
 import os
 import sys
+from bs4 import BeautifulSoup
+import pandas as pd
+from time import sleep
+from datetime import datetime
 
 import fs_uploader as fs
 
 from PyQt6.QtGui import QIcon, QAction
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt, QUrl
 
 from PyQt6.QtWidgets import (
     QApplication,
@@ -20,12 +27,194 @@ from PyQt6.QtWidgets import (
     QGroupBox,
     QPlainTextEdit,
     QMainWindow,
-    QMessageBox
+    QMessageBox,
+    QDateTimeEdit,
+    QTextBrowser,
     )
 
-class Uploader(QThread):
+class Uploader(QObject):
     output_signal = pyqtSignal(str)
+    finished_signal = pyqtSignal()
+
+    def __init__(self):
+        super().__init__()
+        self.config = None
+        self.sleep = None
+
+    def set_arguments(self, configuration: fs.Configuration, sleep_interval:int=5, manual_time:datetime = None):
+        self.config = configuration
+        self.sleep = sleep_interval
+        self.manual_time = manual_time
     
+    def set_continue_state(self, state:bool=True):
+        self.continue_signal = state
+
+    def upload(self, sleep_interval:int = 5):
+        configuration = self.config
+        try:
+            os.chdir(configuration.local_dir)
+        except OSError as e:
+            self.output_signal.emit('Encountered OSError when changing working directory:\n')
+            self.output_signal.emit(f'{e}\n')
+            self.output_signal.emit('Is this definitely the correct directory?')
+            self.finished_signal.emit()
+            return
+
+        try:
+            with open(os.path.join(configuration.local_dir,'index.htm'),'r') as f:
+                html_content = f.read()
+        except Exception as e:
+            self.output_signal.emit('Could not open index file with the following error:\n')
+            self.output_signal.emit(f'{e}')
+            self.finished_signal.emit()
+            return
+        
+        if fs.verify_file_status(html_content) is False:
+            self.output_signal.emit('ISU copyright notice could not be found in index.htm! Either this is the wrong folder or you have been modifying the templates extensively.\nRestore the default copyright notice to the generated site to continue.')
+            self.finished_signal.emit()
+            return
+
+        soup = BeautifulSoup(html_content,'lxml')
+
+        try:
+            results_table = fs.find_results_table(soup)
+        except Exception as e:
+            self.output_signal.emit('Failed to find timetable with following error:')
+            self.output_signal.emit(e)
+            self.finished_signal.emit()
+            return
+
+        segments = fs.build_segment_table(results_table)
+
+        try:
+            ftp = fs.return_from_generator_gui(fs.ftp_connect, self,
+                                            [configuration.host,
+                                            configuration.user,
+                                            configuration.password,
+                                            configuration.remote_dir,
+                                            configuration.port])
+        except ConnectionError as e:
+            self.finished_signal.emit()
+            return
+        except Exception as e:
+            self.output_signal.emit(f'{e}')
+            self.finished_signal.emit()
+            return
+        
+        if configuration.replace is not None:
+            try:
+                replacements = pd.read_csv(configuration.replace, dtype=str)
+            except Exception as e:
+                self.output_signal.emit('Could not open replacements file with following error:')
+                self.output_signal.emit(e)
+                self.finished_signal.emit()
+                return
+        
+        if configuration.save_file is None:
+            filetable_current = pd.DataFrame({'filepaths':'',
+                                        'hashes':''}, index = [0])
+        else:
+            try:
+                filetable_current = pd.read_csv(os.path.abspath(os.path.normpath(configuration.save_file)))
+            except FileNotFoundError:
+                self.output_signal.emit('No save file found at specified address. Uploading all files and continuing.')
+                filetable_current = pd.DataFrame({'filepaths':'',
+                                                'hashes':''}, index = [0])
+        
+        time_last_update = datetime.now()
+        filetable_for_disk = None
+        while self.continue_signal is True:
+            filetable_for_disk, time_last_update = fs.return_from_generator_gui(
+                fs.update_ftp_server, self,
+                (ftp, filetable_current, configuration, replacements, segments, time_last_update, self.manual_time, False, self)
+            )
+            sleep(sleep_interval)
+        
+        ftp.quit()
+        self.output_signal.emit('Connection closed.')
+        if (configuration.save_file is not None) and (filetable_for_disk is not None):
+            filetable_for_disk.to_csv(os.path.abspath(os.path.normpath(configuration.save_file)), index=False)
+            self.output_signal.emit(f'Wrote current filetable status to "{os.path.abspath(os.path.normpath(configuration.save_file))}".')
+        
+        self.finished_signal.emit()
+        return
+
+class AboutWindow(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle('About')
+        self.setGeometry(150,150,800,800)
+        self.initUI()
+
+    def initUI(self):
+        layout = QGridLayout()
+        self.gnu = QTextBrowser()
+        self.gnu.setSource(QUrl(f"file:{os.path.abspath(os.path.join(os.path.dirname(__file__),'LICENSE.md'))}"))
+        self.heading = QLabel('FSM Web Uploader is a simple program intended to make the upload of websites produced by FS Manager easier.\n'
+                              'The main motivation behind the software was to automate a process of withholding the upload of panel makeup\n'
+                              'until the start of a segment, so as to avoid sending out conflicting information ahead of the event.\n\n'
+                              'This program will also scrape the directories of FSM to find the results PDFs for upload to the site.\n\n'
+                              'This software is licensed under the GPL 3.0 License, the text of which can be found below or bundled with this program.\n'
+                              'The author can be reached at robert.hayes@iceskating.org.uk.')
+        layout.addWidget(self.heading, 0, 0, 1, 1)
+        layout.addWidget(self.gnu, 1, 0, 1, 1)
+        self.setLayout(layout)
+
+class HelpWindow(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle('Help')
+        self.setGeometry(150,150,800,800)
+        self.initUI()
+
+    def initUI(self):
+        layout = QGridLayout()
+        self.readme = QTextBrowser()
+        self.readme.setSource(QUrl(f"file:{os.path.abspath(os.path.join(os.path.dirname(__file__),'README.md'))}"))
+        layout.addWidget(self.readme, 0, 0, 1, 1)
+        self.setLayout(layout)
+
+class TimeWindow(QWidget):
+    '''
+    Window for setting a manual override time.
+    '''
+    chosen_time = pyqtSignal(object)
+
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle('Manual time entry')
+        self.setGeometry(150, 150, 300, 100)
+        self.initUI()
+
+    def initUI(self):
+        layout = QGridLayout()
+        
+        self.checkbox_label = QLabel('Use manual upload time?')
+        self.checkbox = QCheckBox()
+        self.checkbox.clicked.connect(self.enable_time_chooser)
+
+        layout.addWidget(self.checkbox_label, 0, 0, 1, 1)
+        layout.addWidget(self.checkbox, 0, 1, 1, 1)
+        
+        self.timechooser = QDateTimeEdit()
+        self.timechooser.setCalendarPopup(True)
+        self.timechooser.setDateTime(datetime.now())
+        self.timechooser.setEnabled(self.checkbox.isChecked())
+        layout.addWidget(self.timechooser, 1, 0, 1, 2)
+
+        self.setLayout(layout)
+    
+    def enable_time_chooser(self):
+        self.timechooser.setEnabled(self.checkbox.isChecked())
+    
+    def closeEvent(self, event):
+        if self.checkbox.isChecked():
+            value = self.timechooser.dateTime().toPyDateTime()
+        else:
+            value = None
+        self.chosen_time.emit(value)
+        event.accept()
+        
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -72,6 +261,9 @@ class MainWindow(QMainWindow):
         return top_left_row + 2
 
     def init_ui(self):
+        self.manual_time = None
+        self.ui_state = True
+
         default_stylesheet = 'font-weight: normal; font-size: 11px'
         master_grid_layout = QGridLayout()
         
@@ -131,6 +323,18 @@ class MainWindow(QMainWindow):
         file_menu.addAction(config_save)
         file_menu.addSeparator()
         file_menu.addAction(close_action)
+        ## Create options menu
+        options_menu = menu_bar.addMenu('Options')
+        set_time = QAction('Set manual time', self)
+        set_time.triggered.connect(self.set_manual_time)
+        about_window = QAction('About', self)
+        about_window.triggered.connect(self.show_about)
+        help_window = QAction('Help', self)
+        help_window.triggered.connect(self.show_help)
+        options_menu.addAction(set_time)
+        options_menu.addSeparator()
+        options_menu.addAction(help_window)
+        options_menu.addAction(about_window)
 
         self.setWindowTitle("FS Manager Web Uploader")
         self.setGeometry(100, 100, 800, 100)
@@ -186,8 +390,95 @@ class MainWindow(QMainWindow):
         self.bb_swiss_timing.clicked.connect(lambda: self.open_file_chooser(self.tb_swiss_timing, filemode=QFileDialog.FileMode.Directory, options=[QFileDialog.Option.ShowDirsOnly], dialog_text='Select FSM directory'))
         self.bb_edits.clicked.connect(lambda: self.open_file_chooser(self.tb_edits, filemode=QFileDialog.FileMode.ExistingFile, dialog_text='Select a file', file_filters=['Edit list files (*.csv)']))
         self.bb_save_file.clicked.connect(lambda: self.open_file_chooser(self.tb_save_file, filemode=QFileDialog.FileMode.AnyFile, dialog_text='Select a file or enter a path', file_filters=['Save states (*.csv)']))
-        # self.run_button.clicked.connect(self.upload_files)
+        
+        # Connect run button
+        self.run_button.clicked.connect(self.run_button_what_do)
+
+    def receive_manual_time(self, value):
+        self.manual_time = value
+        if self.manual_time is None:
+            self.output_feed.appendPlainText('No manual time chosen. Current time will be used when determining panels to upload.')
+        else:
+            self.output_feed.appendPlainText(f'Manual time of {self.manual_time.strftime("%Y-%m-%d %H:%M:%S")} will be used when determining panels to upload.')
+
+    def set_manual_time(self):
+        self.manual_time_window = TimeWindow()
+        self.manual_time_window.setWindowModality(Qt.WindowModality.ApplicationModal)
+        self.manual_time_window.chosen_time.connect(self.receive_manual_time)
+        self.manual_time_window.show()
+
+    def show_about(self):
+        self.about_window = AboutWindow()
+        self.about_window.setWindowModality(Qt.WindowModality.ApplicationModal)
+        self.about_window.show()
     
+    def show_help(self):
+        self.about_window = HelpWindow()
+        self.about_window.setWindowModality(Qt.WindowModality.ApplicationModal)
+        self.about_window.show()
+    
+    def run_button_what_do(self):
+        if self.run_button.text() == 'Run!':
+            self.run_button.setText('Stop')
+            self.start_upload()
+        else:
+            self.worker.set_continue_state(False)
+            self.run_button.setText('Stopping...')
+    
+    def set_ui_state(self, state:bool):
+        self.tb_hostname.setEnabled(state)
+        self.tb_port.setEnabled(state)
+        self.tb_username.setEnabled(state)
+        self.tb_password.setEnabled(state)
+        self.tb_remote_dir.setEnabled(state)
+        self.tb_local_dir.setEnabled(state)
+        self.bb_local_dir.setEnabled(state)
+        self.tb_swiss_timing.setEnabled(state)
+        self.bb_swiss_timing.setEnabled(state)
+        self.tb_edits.setEnabled(state)
+        self.bb_edits.setEnabled(state)
+        self.cb_movepdf.setEnabled(state)
+        self.tb_save_file.setEnabled(state)
+        self.bb_save_file.setEnabled(state)
+
+    def start_upload(self):
+        self.output_feed.clear()
+        self.set_ui_state(False)
+        try:
+            config_object = self.get_field_values(self.tb_hostname,
+                                                self.tb_port,
+                                                self.tb_username,
+                                                self.tb_password,
+                                                self.tb_local_dir,
+                                                self.tb_remote_dir,
+                                                self.tb_swiss_timing,
+                                                self.tb_edits,
+                                                self.cb_movepdf,
+                                                self.tb_save_file)
+            self.worker = Uploader()
+            self.worker.set_arguments(config_object, manual_time=self.manual_time)
+            self.worker.set_continue_state(True)
+
+            self.worker_thread = QThread()
+            self.worker.moveToThread(self.worker_thread)
+
+            self.worker.output_signal.connect(self.update_output_feed)
+            self.worker.finished_signal.connect(self.worker_thread.quit)
+            self.worker.finished_signal.connect(lambda: self.run_button.setText('Run!'))
+            self.worker.finished_signal.connect(self.worker.deleteLater)
+            self.worker_thread.finished.connect(self.worker_thread.deleteLater)
+            self.worker_thread.finished.connect(lambda: self.set_ui_state(True))
+
+            self.worker_thread.started.connect(self.worker.upload)
+            self.worker_thread.start()
+        except Exception as e:
+            self.output_feed.appendPlainText('Encountered exception when starting upload:\n')
+            self.output_feed.appendPlainText(f'{e}')
+            self.set_ui_state(True)
+
+    def update_output_feed(self, message):
+        self.output_feed.appendPlainText(message)
+
     def open_file_chooser(self, target_text_box: QLineEdit, file_filters:list[str]|None=None, options:list[QFileDialog.Option]|None=None,
                             dialog_text:str='Select a file', filemode:QFileDialog.FileMode=QFileDialog.FileMode.AnyFile):
         dialog = QFileDialog(caption=dialog_text)
@@ -197,8 +488,6 @@ class MainWindow(QMainWindow):
         file_filters.extend(['All Files (*)'])
         file_filters = ';;'.join(file_filters)
         dialog.setNameFilter(file_filters)
-        
-        # dialog.setLabelText(dialog_text)
 
         if options is None:
             options = []
@@ -302,18 +591,10 @@ class MainWindow(QMainWindow):
                 message = QMessageBox()
                 message.setText(f'Error encountered when saving:\n---\n{e}\n---')
                 message.exec()
-    
-    # def upload_files(self):
-    #     self.upload = QProcess(self)
-    #     self.upload.readyReadStandardOutput.connect(self.handle_stdout)
-    #     self.upload.readyReadStandardError.connect(self.handle_stderr)
-    #     self.upload.finished.connect(self.upload_interrupted)
-
-    #     self.upload.start()
 
 def main():
     app = QApplication(sys.argv)
-    svg_icon = QIcon('icon.svg')
+    svg_icon = QIcon(os.path.abspath(os.path.join(os.path.dirname(__file__),'icon.svg')))
     app.setWindowIcon(svg_icon)
     app.setStyle('Fusion')
     window = MainWindow()

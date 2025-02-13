@@ -1,16 +1,51 @@
+# FSM Web Uploader: a simple program for uploading the web files produced by FS Manager software used in figure skating judging.
+#     Copyright (C) 2025  Robert Hayes
+
 from bs4 import BeautifulSoup
 from datetime import datetime
 import pandas as pd
 import os
 import argparse
 import fs_uploader as fs
+from ftplib import all_errors
+import traceback
+from threading import Thread, Event
+from time import sleep
+
+def update_loop(ftp, filetable_current:pd.DataFrame, config:fs.Configuration, replacements:pd.DataFrame, segments:pd.DataFrame, manual_time:datetime, sleep_interval:int, stop_event:Event, done_signal:Event):
+    last_updated = datetime.now()
+    while not stop_event.is_set():
+        try:
+            filetable_for_disk, last_updated = fs.return_from_generator_cli(
+                fs.update_ftp_server,
+                [ftp,filetable_current,config,replacements,segments, last_updated, manual_time]
+            )
+            sleep(sleep_interval)
+        except all_errors:
+            ftp = fs.return_from_generator_cli(
+                fs.ftp_connect,
+                [config.host, config.user, config.password, config.remote_dir, config.port]
+            )
+        except Exception as e:
+            print('Encountered unexpected exception during update with the following error message:')
+            traceback.print_exception(e)
+            break
+    
+    ftp.quit()
+    print('Connection closed.')
+    if config.save_file is not None:
+        filetable_for_disk.to_csv(os.path.abspath(os.path.normpath(config.save_file)), index=False)
+        print(f'Wrote current filetable status to "{os.path.abspath(os.path.normpath(config.save_file))}".')
+    done_signal.set()
+
+    # result.put(filetable_for_disk)
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('CONFIG',help='Configuration file following template example.')
     parser.add_argument('--dry-run','-d',action='store_true',help='Print config and exit without connecting.')
     parser.add_argument('--sleep-interval','-s',help='Time in seconds to wait between update cycles. Defaults to 5.',default=5)
-    parser.add_argument('--time','-t',help='Set a manual time to check segments against. Must be set in "YYYY-MM-DD HH:MM:SS" format.')
+    parser.add_argument('--time','-t',help='Set a manual time to check segments against. Must be set in "YYYY-mm-dd HH:MM:SS" format.')
     args = parser.parse_args()
 
     if args.time is not None:
@@ -70,29 +105,32 @@ def main():
     # Load filetable if applicable
     if config.save_file is None:
         filetable_current = pd.DataFrame({'filepaths':'',
-                                      'hashes':''}, index = [0])
+                                          'hashes':''}, index = [0])
     else:
         try:
             filetable_current = pd.read_csv(os.path.abspath(os.path.normpath(config.save_file)))
         except FileNotFoundError:
-            print('No save file found at specified address. Uploading all files and continuing.')
+            print(f'No save file found at {config.save_file}. Uploading all files and continuing.')
             filetable_current = pd.DataFrame({'filepaths':'',
                                               'hashes':''}, index = [0])
     
-    ## Main loop
-    filetable_for_disk = fs.return_from_generator_cli(fs.update_ftp_server, [ftp, filetable_current, config,
-                                                                        replacements, segments,
-                                                                        manual_time, sleep_interval])
-    # filetable_for_disk = fs.update_ftp_server(ftp, filetable_current, config,
-    #                                        replacements, segments,
-    #                                        manual_time, sleep_interval)
-    
-    ftp.quit()
-    print('Connection closed.')
-    if config.save_file is not None:
-        filetable_for_disk.to_csv(os.path.abspath(os.path.normpath(config.save_file)), index=False)
-        print(f'Wrote current filetable status to "{os.path.abspath(os.path.normpath(config.save_file))}".')
-    exit(0)
+    ## Main ftp update logic
+    stop_event = Event()
+    done_signal = Event()
+    thread = Thread(target=update_loop, args=(ftp, filetable_current, config, replacements, segments, manual_time, sleep_interval, stop_event, done_signal))
+    thread.start()
+
+    try:
+        while thread.is_alive():
+            thread.join(1)
+    except KeyboardInterrupt:
+        print('Interrupt received - stopping transfer after this iteration completes...')
+        stop_event.set()
+        while not done_signal.is_set():
+            sleep(sleep_interval)
+        thread.join()
+
+        print('Upload done. Exiting...')
 
 if __name__ == "__main__":
     main()

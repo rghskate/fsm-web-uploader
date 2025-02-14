@@ -1,7 +1,18 @@
-#!/usr/bin/env python3
-
 # FSM Web Uploader: a simple program for uploading the web files produced by FS Manager software used in figure skating judging.
 #     Copyright (C) 2025  Robert Hayes
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import os
 import sys
@@ -92,7 +103,8 @@ class Uploader(QObject):
                                             configuration.user,
                                             configuration.password,
                                             configuration.remote_dir,
-                                            configuration.port])
+                                            configuration.port,
+                                            '"Stop"'])
         except ConnectionError as e:
             self.finished_signal.emit()
             return
@@ -150,14 +162,19 @@ class AboutWindow(QWidget):
         layout = QGridLayout()
         self.gnu = QTextBrowser()
         self.gnu.setSource(QUrl(f"file:{os.path.abspath(os.path.join(os.path.dirname(__file__),'LICENSE.md'))}"))
+        self.bsd = QTextBrowser()
+        self.bsd.setSource(QUrl(f"file:{os.path.abspath(os.path.join(os.path.dirname(__file__),'LICENSES.md'))}"))
         self.heading = QLabel('FSM Web Uploader is a simple program intended to make the upload of websites produced by FS Manager easier.\n'
                               'The main motivation behind the software was to automate a process of withholding the upload of panel makeup\n'
                               'until the start of a segment, so as to avoid sending out conflicting information ahead of the event.\n\n'
                               'This program will also scrape the directories of FSM to find the results PDFs for upload to the site.\n\n'
                               'This software is licensed under the GPL 3.0 License, the text of which can be found below or bundled with this program.\n'
                               'The author can be reached at robert.hayes@iceskating.org.uk.')
+        self.subheading = QLabel('The following third party licenses are also included to ensure compliance for the use of their modules:')
         layout.addWidget(self.heading, 0, 0, 1, 1)
         layout.addWidget(self.gnu, 1, 0, 1, 1)
+        layout.addWidget(self.subheading, 2, 0, 1, 1)
+        layout.addWidget(self.bsd, 3, 0, 1, 1)
         self.setLayout(layout)
 
 class HelpWindow(QWidget):
@@ -222,6 +239,9 @@ class MainWindow(QMainWindow):
         self.init_ui()
     
     def create_text_entry(self, section_title:str, placeholder_text:str, stylesheet:str|None=None, echomode=QLineEdit.EchoMode.Normal):
+        '''
+        Helper function for creating labelled text entry fields.
+        '''
         title_label = QLabel(section_title)
         if stylesheet is None:
             stylesheet = 'font-weight: normal; font-size: 11px'
@@ -235,12 +255,18 @@ class MainWindow(QMainWindow):
     def position_text_entry(self, grid_layout:QGridLayout, top_left_row:int, top_left_col:int,
                               title:QLabel, text_box:QLineEdit,
                               columns:int = 5):
+        '''
+        Helper function for positioning text entry fields and labels next to one another on a QGridLayout
+        '''
         grid_layout.addWidget(title, top_left_row, top_left_col, 1, 1)
         grid_layout.addWidget(text_box, top_left_row, top_left_col+1, 1, (columns-1))
 
         return top_left_row + 2
     
     def create_file_chooser(self, section_title:str, target_file_name:str, stylesheet:str|None=None):
+        '''
+        Helper function for creating file chooser buttons and textboxes.
+        '''
         title_label = QLabel(section_title)
         if stylesheet is None:
             stylesheet = 'font-weight: normal; font-size: 11px'
@@ -254,6 +280,9 @@ class MainWindow(QMainWindow):
     def position_file_chooser(self, grid_layout:QGridLayout, top_left_row:int, top_left_col:int,
                               title:QLabel, text_box:QLineEdit, button:QPushButton,
                               columns:int = 5):
+        '''
+        Helper function for positioning file choosers on a QGridLayout
+        '''
         grid_layout.addWidget(title, top_left_row, top_left_col, 1, 1)
         grid_layout.addWidget(text_box, top_left_row, top_left_col+1, 1, columns-2)
         grid_layout.addWidget(button, top_left_row, top_left_col+(columns-1), 1, 1)
@@ -343,7 +372,7 @@ class MainWindow(QMainWindow):
         ## FTP Parameters
         self.ti_hostname, self.tb_hostname = self.create_text_entry('Hostname','e.g., 192.168.0.1, https://example.com', stylesheet=default_stylesheet)
         target_row_ftp = self.position_text_entry(grid_ftp, target_row_ftp, 0, self.ti_hostname, self.tb_hostname)
-        self.ti_port, self.tb_port = self.create_text_entry('Port','e.g., 22', stylesheet=default_stylesheet)
+        self.ti_port, self.tb_port = self.create_text_entry('Port','e.g., 21', stylesheet=default_stylesheet)
         target_row_ftp = self.position_text_entry(grid_ftp, target_row_ftp, 0, self.ti_port, self.tb_port)
         self.ti_username, self.tb_username = self.create_text_entry('Username','Enter your FTP username...', stylesheet=default_stylesheet)
         target_row_ftp = self.position_text_entry(grid_ftp, target_row_ftp, 0, self.ti_username, self.tb_username)
@@ -395,6 +424,9 @@ class MainWindow(QMainWindow):
         self.run_button.clicked.connect(self.run_button_what_do)
 
     def receive_manual_time(self, value):
+        '''
+        Function to receive manual time from TimeWindow.
+        '''
         self.manual_time = value
         if self.manual_time is None:
             self.output_feed.appendPlainText('No manual time chosen. Current time will be used when determining panels to upload.')
@@ -426,6 +458,9 @@ class MainWindow(QMainWindow):
             self.run_button.setText('Stopping...')
     
     def set_ui_state(self, state:bool):
+        '''
+        Set the state of the main window's UI elements to either enabled (True) or disabled (False).
+        '''
         self.tb_hostname.setEnabled(state)
         self.tb_port.setEnabled(state)
         self.tb_username.setEnabled(state)
@@ -442,6 +477,9 @@ class MainWindow(QMainWindow):
         self.bb_save_file.setEnabled(state)
 
     def start_upload(self):
+        '''
+        Start the upload loop by spawning a worker thread.
+        '''
         self.output_feed.clear()
         self.set_ui_state(False)
         try:

@@ -1,6 +1,19 @@
 # FSM Web Uploader: a simple program for uploading the web files produced by FS Manager software used in figure skating judging.
 #     Copyright (C) 2025  Robert Hayes
 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 from bs4 import BeautifulSoup
 from datetime import datetime
 import pandas as pd
@@ -11,6 +24,9 @@ import hashlib
 import configparser
 
 class Configuration:
+    '''
+    Container for configuration options for program.
+    '''
     def __init__(self) -> None:
         self.host = None
         self.port = None
@@ -24,6 +40,9 @@ class Configuration:
         self.save_file = None
 
     def from_ini(self,config_filepath) -> None:
+        '''
+        Read INI file to Configuration object.
+        '''
         config_obj = configparser.RawConfigParser()
         config_obj.read(config_filepath)
 
@@ -64,6 +83,9 @@ class Configuration:
             self.move_pdf = False
     
     def to_ini(self, path:str):
+        '''
+        Write configuration object to INI file.
+        '''
         config = configparser.RawConfigParser()
         config['FTP'] = {
                 'Hostname':self.host,
@@ -111,6 +133,9 @@ Save file location: {self.save_file}
 '''
 
 def return_from_generator_gui(gen, emitter_target, args:list):
+    '''
+    Exhausts generator and returns any return value, sending pyqtSignals of yielded text.
+    '''
     itr = gen(*args)
     while True:
         try:
@@ -125,6 +150,9 @@ def return_from_generator_gui(gen, emitter_target, args:list):
     return return_value
 
 def return_from_generator_cli(gen, args:list):
+    '''
+    Exhausts generator and returns and return value, printing to stdout any yielded text.
+    '''
     itr = gen(*args)
     while True:
         try:
@@ -154,7 +182,7 @@ def copy_pdfs(swiss_timing_folder,local_dir):
         for file in files:
             abs_path = os.path.abspath(os.path.join(root, file))
             file_paths.append(abs_path)
-    target_files = ['JudgesDetailsperSkater.pdf','StartListwithTimes.pdf']
+    target_files = ['JudgesDetailsperSkater.pdf']
     pdfs = [pdf for pdf in file_paths if any(target_file in pdf for target_file in target_files)]
     
     currently_present_pdfs = [file for file in os.listdir(local_dir) if any(target_file in file for target_file in target_files)]
@@ -163,12 +191,15 @@ def copy_pdfs(swiss_timing_folder,local_dir):
         if os.path.basename(file) not in currently_present_pdfs:
             yield f'Copying "{file}" to "{local_dir}"...', True
             shutil.copyfile(os.path.normpath(file), os.path.normpath(os.path.join(local_dir,os.path.basename(file))))
+        elif (os.path.basename(file) in currently_present_pdfs) and (hash_sha256(file) != hash(os.path.basename(file))):
+            yield f'Copying latest version of "{file}" to "{local_dir}"...', True
+            shutil.copyfile(os.path.normpath(file), os.path.normpath(os.path.join(local_dir,os.path.basename(file))))
     
 def overprint(content):
     print(end='\x1b[2K')
     print(content, end='\r')
 
-def ftp_connect(hostname,user,password,remote_dir,port="",stop_sequence:str='Spacebar'):
+def ftp_connect(hostname,user,password,remote_dir,port="",stop_sequence:str='Ctrl+C'):
     yield f'Connecting to FTP site {hostname}:{port} as {user}...', False
 
     if port != "":

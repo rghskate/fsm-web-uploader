@@ -27,11 +27,12 @@ from time import sleep
 
 def update_loop(ftp, filetable_current:pd.DataFrame, config:fs.Configuration, replacements:pd.DataFrame, segments:pd.DataFrame, manual_time:datetime, sleep_interval:int, stop_event:Event, done_signal:Event):
     last_updated = datetime.now()
+    filetable_for_disk = filetable_current
     while not stop_event.is_set():
         try:
             filetable_for_disk, last_updated = fs.return_from_generator_cli(
                 fs.update_ftp_server,
-                [ftp,filetable_current,config,replacements,segments, last_updated, manual_time]
+                [ftp,filetable_for_disk,config,replacements,segments, last_updated, manual_time]
             )
             sleep(sleep_interval)
         except all_errors:

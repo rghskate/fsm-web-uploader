@@ -134,11 +134,11 @@ class Uploader(QObject):
                                                 'hashes':''}, index = [0])
         
         time_last_update = datetime.now()
-        filetable_for_disk = None
+        filetable_for_disk = filetable_current
         while self.continue_signal is True:
             filetable_for_disk, time_last_update = fs.return_from_generator_gui(
                 fs.update_ftp_server, self,
-                (ftp, filetable_current, configuration, replacements, segments, time_last_update, self.manual_time, False, self)
+                (ftp, filetable_for_disk, configuration, replacements, segments, time_last_update, self.manual_time, False, self)
             )
             sleep(sleep_interval)
         

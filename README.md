@@ -15,19 +15,19 @@ The program comes with both a CLI and GUI, depending on user preference. Functio
 - Makes arbitrary edits to the uploaded HTML files as defined in the provided replacements CSV (e.g., removing references to Solo Dance necessary when using older versions of FS Manager to run solo dance competitions). This is preferable to editing the templates used by FS Manager as doing so can lead to breaking the generation of the pages.
   - For a template of an appropriate file to define replacements in.
 
-## Use
+## Installation
 
-At the moment, this application is distributed only as source code. To use this application, clone this repo and install the necessary dependencies. Anaconda is the recommended method for creating virtual Python environments (due to nothing more than personal preference). With Git and Anaconda already installed, this process might look something like this:
+Currently, only the GUI portion of the application is distributed as a packaged application, and only for Windows (although FS Manager only runs on Windows so it's probably the only place that you'd ever want to use it anyway). To use it, unzip the folder to wherever you want to keep the application and run the executable.
+
+To run the application from source using Anaconda, the below sequence of commands in PowerShell should see you right:
 
 ```PowerShell
 git clone "https://github.com/rghskate/fsm-web-uploader"
 cd fsm-web-uploader
 conda env create --file environment.yml
 conda activate fsuploader
-python gui.py
+python gui.py # or python cli.py --help for the CLI version.
 ```
-
-Work is currently underway to distribute the application in a more user friendly format, but this may take a little while.
 
 ## Licenses
 

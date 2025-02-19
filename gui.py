@@ -23,6 +23,13 @@ from datetime import datetime
 
 import fs_uploader as fs
 
+try:
+    from ctypes import windll
+    myappid = 'com.bis.fsmwebuploader'
+    windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+except ImportError:
+    pass
+
 from PyQt6.QtGui import QIcon, QAction
 from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt, QUrl
 
@@ -365,7 +372,7 @@ class MainWindow(QMainWindow):
         options_menu.addAction(help_window)
         options_menu.addAction(about_window)
 
-        self.setWindowTitle("FS Manager Web Uploader")
+        self.setWindowTitle("FSM Web Uploader")
         self.setGeometry(100, 100, 800, 100)
 
         # Position UI Elements
@@ -632,8 +639,11 @@ class MainWindow(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
-    svg_icon = QIcon(os.path.abspath(os.path.join(os.path.dirname(__file__),'icon.svg')))
-    app.setWindowIcon(svg_icon)
+    if sys.platform.startswith('win32'):
+        icon = QIcon(os.path.abspath(os.path.join(os.path.dirname(__file__),'win_icon.ico')))
+    else:
+        icon = QIcon(os.path.abspath(os.path.join(os.path.dirname(__file__),'icon.svg')))
+    app.setWindowIcon(icon)
     app.setStyle('Fusion')
     window = MainWindow()
     window.show()

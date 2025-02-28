@@ -191,7 +191,8 @@ def copy_pdfs(swiss_timing_folder,local_dir):
         if os.path.basename(file) not in currently_present_pdfs:
             yield f'Copying "{file}" to "{local_dir}"...', True
             shutil.copyfile(os.path.normpath(file), os.path.normpath(os.path.join(local_dir,os.path.basename(file))))
-        elif (os.path.basename(file) in currently_present_pdfs) and (hash_sha256(file) != hash(os.path.basename(file))):
+        elif (os.path.basename(file) in currently_present_pdfs) and (hash_sha256(file) != hash_sha256(os.path.basename(file))):
+            yield f'{hash_sha256(file)}\n{hash(os.path.basename(file))}', True
             yield f'Copying latest version of "{file}" to "{local_dir}"...', True
             shutil.copyfile(os.path.normpath(file), os.path.normpath(os.path.join(local_dir,os.path.basename(file))))
     

@@ -152,8 +152,17 @@ class Uploader(QObject):
         ftp.quit()
         self.output_signal.emit('Connection closed.')
         if (configuration.save_file is not None) and (filetable_for_disk is not None):
-            filetable_for_disk.to_csv(os.path.abspath(os.path.normpath(configuration.save_file)), index=False)
-            self.output_signal.emit(f'Wrote current filetable status to "{os.path.abspath(os.path.normpath(configuration.save_file))}".')
+            try:
+                write_path = os.path.abspath(os.path.normpath(configuration.save_file))
+                os.makedirs(os.path.dirname(write_path), exist_ok=True)
+                filetable_for_disk.to_csv(write_path, index=False)
+                self.output_signal.emit(f'Wrote current filetable status to "{os.path.abspath(os.path.normpath(configuration.save_file))}".')
+            except Exception as e:
+                self.output_signal.emit('Could not open write save file to disk with following error:')
+                self.output_signal.emit(e)
+                self.finished_signal.emit()
+                return
+
         
         self.finished_signal.emit()
         return

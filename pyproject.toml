@@ -1,0 +1,13 @@
+[project]
+name = "fsm-web-uploader"
+version = "0.1.0"
+description = "Program to upload FS Manager created websites using FTP."
+readme = "README.md"
+requires-python = "~=3.11"
+dependencies = [
+    "beautifulsoup4>=4.13.4",
+    "lxml>=5.4.0",
+    "pandas>=2.2.3",
+    "pyinstaller>=6.13.0",
+    "pyqt6>=6.9.0",
+]

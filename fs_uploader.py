@@ -270,16 +270,25 @@ def upload_updated_files(ftp:FTP, current_filetable:pd.DataFrame, old_filetable:
     if len(brand_new_files) > 0:
         for path in brand_new_files:
             with open(path,'rb') as file:
-                ftp.storbinary(f'STOR {path}', file)
-                yield f'Updated {path} on remote', True
-            update_counter += 1
+                try:
+                    ftp.storbinary(f'STOR {path}', file)
+                    yield f'Updated {path} on remote', True
+                    update_counter += 1
+                except Exception as e:
+                    yield f'Failed to upload {file} with following error:', True
+                    yield f'{e}', False
 
     for i in range(0,len(comparable_files)):
         if comparable_files.loc[i,'hashes'] != old_filetable.loc[i,'hashes']:
             with open(comparable_files.loc[i,"filepaths"],'rb') as file:
-                ftp.storbinary(f'STOR {comparable_files.loc[i,"filepaths"]}', file)
-                yield f'Updated {comparable_files.loc[i,"filepaths"]} on remote', True
-            update_counter += 1
+                filename = comparable_files.loc[i,"filepaths"]
+                try:
+                    ftp.storbinary(f'STOR {filename}', file)
+                    yield f'Updated {filename} on remote', True
+                    update_counter += 1
+                except Exception as e:
+                    yield f'Failed to update {filename} with following error:', True
+                    yield f'{e}', False
     
     return update_counter
 

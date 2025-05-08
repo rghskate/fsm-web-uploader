@@ -149,20 +149,23 @@ class Uploader(QObject):
             )
             sleep(sleep_interval)
         
-        ftp.quit()
-        self.output_signal.emit('Connection closed.')
-        if (configuration.save_file is not None) and (filetable_for_disk is not None):
-            try:
-                write_path = os.path.abspath(os.path.normpath(configuration.save_file))
-                os.makedirs(os.path.dirname(write_path), exist_ok=True)
-                filetable_for_disk.to_csv(write_path, index=False)
-                self.output_signal.emit(f'Wrote current filetable status to "{os.path.abspath(os.path.normpath(configuration.save_file))}".')
-            except Exception as e:
-                self.output_signal.emit('Could not open write save file to disk with following error:')
-                self.output_signal.emit(e)
-                self.finished_signal.emit()
-                return
+        try:
+            ftp.quit()
+            self.output_signal.emit('Connection closed.')
 
+            if (configuration.save_file is not None) and (filetable_for_disk is not None):
+                try:
+                    write_path = os.path.abspath(os.path.normpath(configuration.save_file))
+                    os.makedirs(os.path.dirname(write_path), exist_ok=True)
+                    filetable_for_disk.to_csv(write_path, index=False)
+                    self.output_signal.emit(f'Wrote current filetable status to "{os.path.abspath(os.path.normpath(configuration.save_file))}".')
+                except Exception as e:
+                    self.output_signal.emit('Could not open write save file to disk with following error:')
+                    self.output_signal.emit(e)
+
+        except ConnectionResetError:
+            self.output_signal.emit('Connection to server lost.')
+            self.output_signal.emit('Skipping write of filetable.')
         
         self.finished_signal.emit()
         return
@@ -562,6 +565,9 @@ class MainWindow(QMainWindow):
             target_text_box.setText(os.path.normpath(file_path[0]))
 
     def closeEvent(self, a0):
+        '''
+        Intercept program close with prompt to save configuration.
+        '''
         reply = QMessageBox.question(
             self,
             "Save config",
@@ -582,6 +588,9 @@ class MainWindow(QMainWindow):
                          field_edits:QLineEdit,
                          field_move_pdf:QCheckBox, field_save_file:QLineEdit,
                          config:fs.Configuration):
+        '''
+        Set the values of the fields in the main window UI.
+        '''
         field_hostname.setText(config.host)
         field_port.setText(config.port)
         field_username.setText(config.user)
@@ -598,6 +607,9 @@ class MainWindow(QMainWindow):
                          field_local_dir:QLineEdit, field_remote_dir:QLineEdit, field_swiss_timing_dir:QLineEdit,
                          field_edits:QLineEdit,
                          field_move_pdf:QCheckBox, field_save_file:QLineEdit):
+        '''
+        Collect the values of the fields in the main window UI.
+        '''
         config = fs.Configuration()
         config.host = field_hostname.text()
         config.port = field_port.text()

@@ -162,3 +162,7 @@ cython_debug/
 # Secret values
 envs
 secrets
+
+# UV
+.python-version
+uv.lock

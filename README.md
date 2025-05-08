@@ -19,14 +19,12 @@ The program comes with both a CLI and GUI, depending on user preference. Functio
 
 Currently, only the GUI portion of the application is distributed as a packaged application, and only for Windows (although FS Manager only runs on Windows so it's probably the only place that you'd ever want to use it anyway). To use it, unzip the folder to wherever you want to keep the application and run the executable.
 
-To run the application from source using Anaconda, the below sequence of commands in PowerShell should see you right:
+To run the application from source using UV, the below sequence of commands in PowerShell should work:
 
 ```PowerShell
 git clone "https://github.com/rghskate/fsm-web-uploader"
 cd fsm-web-uploader
-conda env create --file environment.yml
-conda activate fsuploader
-python gui.py # or python cli.py --help for the CLI version.
+uv run gui.py
 ```
 
 ## Licenses

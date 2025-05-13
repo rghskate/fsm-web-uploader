@@ -143,11 +143,20 @@ class Uploader(QObject):
         time_last_update = datetime.now()
         filetable_for_disk = filetable_current
         while self.continue_signal is True:
-            filetable_for_disk, time_last_update = fs.return_from_generator_gui(
-                fs.update_ftp_server, self,
-                (ftp, filetable_for_disk, configuration, replacements, segments, time_last_update, self.manual_time, False, self)
-            )
-            sleep(sleep_interval)
+            try:
+                filetable_for_disk, time_last_update = fs.return_from_generator_gui(
+                    fs.update_ftp_server, self,
+                    (ftp, filetable_for_disk, configuration, replacements, segments, time_last_update, self.manual_time, False, self)
+                )
+                sleep(sleep_interval)
+            except ConnectionError as e:
+                self.continue_signal = False
+                self.output_signal.emit('Connection error encountered:')
+                self.output_signal.emit(f'{e}')
+                self.output_signal.emit('Connection to server lost.')
+                self.output_signal.emit('Skipping write of filetable.')
+                self.finished_signal.emit()
+                return
         
         try:
             ftp.quit()
@@ -160,8 +169,8 @@ class Uploader(QObject):
                     filetable_for_disk.to_csv(write_path, index=False)
                     self.output_signal.emit(f'Wrote current filetable status to "{os.path.abspath(os.path.normpath(configuration.save_file))}".')
                 except Exception as e:
-                    self.output_signal.emit('Could not open write save file to disk with following error:')
-                    self.output_signal.emit(e)
+                    self.output_signal.emit('Could not write save file to disk with following error:')
+                    self.output_signal.emit(f'{e}')
 
         except ConnectionResetError:
             self.output_signal.emit('Connection to server lost.')

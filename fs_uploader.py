@@ -260,6 +260,24 @@ def hash_sha256(filepath:str):
         return file_hash.hexdigest()
     except FileNotFoundError:
         return None
+    
+def try_upload(ftp: FTP, filepath: str, retry_limit: int = 5):
+    upload_success = False
+    retries = 0
+    with open(filepath, 'rb') as file_object:
+        while upload_success is False:
+            if retries <= retry_limit:
+                try:
+                    ftp.storbinary(f'STOR {filepath}', file_object)
+                    yield f'Uploaded {filepath} to remote.', True
+                    upload_success = True
+                except Exception as e:
+                    yield f'Failed to upload {filepath} with the following error:\n{e}', True
+                    retries += 1
+                    yield f"Retrying, attempt number {retries}/{retry_limit}"
+            else:
+                raise ConnectionError(f'Retry limit of {retry_limit} exceeded when uploading {filepath}')
+
 
 def upload_updated_files(ftp:FTP, current_filetable:pd.DataFrame, old_filetable:pd.DataFrame):
     old_filetable = old_filetable.reset_index(drop=True)
@@ -269,26 +287,38 @@ def upload_updated_files(ftp:FTP, current_filetable:pd.DataFrame, old_filetable:
 
     if len(brand_new_files) > 0:
         for path in brand_new_files:
-            with open(path,'rb') as file:
-                try:
-                    ftp.storbinary(f'STOR {path}', file)
-                    yield f'Updated {path} on remote', True
-                    update_counter += 1
-                except Exception as e:
-                    yield f'Failed to upload {file} with following error:', True
-                    yield f'{e}', False
+            try:
+                for status_message, overprint_state in try_upload(ftp, path):
+                    yield status_message, overprint_state
+            except ConnectionError as err:
+                raise ConnectionError(f'{err}')
+            # with open(path,'rb') as file:
+            #     try:
+            #         ftp.storbinary(f'STOR {path}', file)
+            #         yield f'Updated {path} on remote', True
+            #         update_counter += 1
+            #     except Exception as e:
+            #         yield f'Failed to upload {file} with following error:', True
+            #         yield f'{e}', False
 
     for i in range(0,len(comparable_files)):
         if comparable_files.loc[i,'hashes'] != old_filetable.loc[i,'hashes']:
-            with open(comparable_files.loc[i,"filepaths"],'rb') as file:
-                filename = comparable_files.loc[i,"filepaths"]
-                try:
-                    ftp.storbinary(f'STOR {filename}', file)
-                    yield f'Updated {filename} on remote', True
-                    update_counter += 1
-                except Exception as e:
-                    yield f'Failed to update {filename} with following error:', True
-                    yield f'{e}', False
+            path = comparable_files.loc[i,"filepaths"]
+            try:
+                for status_message, overprint_state in try_upload(ftp, path):
+                    yield status_message, overprint_state
+            except ConnectionError as err:
+                raise ConnectionError(f'{err}')
+
+            # with open(comparable_files.loc[i,"filepaths"],'rb') as file:
+            #     filename = comparable_files.loc[i,"filepaths"]
+            #     try:
+            #         ftp.storbinary(f'STOR {filename}', file)
+            #         yield f'Updated {filename} on remote', True
+            #         update_counter += 1
+            #     except Exception as e:
+            #         yield f'Failed to update {filename} with following error:', True
+            #         yield f'{e}', False
     
     return update_counter
 

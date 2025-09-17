@@ -325,7 +325,7 @@ def try_upload(ftp: FTP, filepath: str, retry_limit: int = 5):
                         True,
                     )
                     retries += 1
-                    yield f"Retrying, attempt number {retries}/{retry_limit}"
+                    yield f"Retrying, attempt number {retries}/{retry_limit}", True
             else:
                 raise ConnectionError(
                     f"Retry limit of {retry_limit} exceeded when uploading {filepath}"

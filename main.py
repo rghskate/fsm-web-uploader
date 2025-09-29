@@ -891,6 +891,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
 def main():
     log_format = "%(asctime)s:%(levelname)s:%(module)s - %(message)s"
+    os.makedirs("./logs", exist_ok=True)
     logging.basicConfig(
         filename=os.path.join(
             "logs",

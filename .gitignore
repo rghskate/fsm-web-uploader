@@ -167,3 +167,4 @@ secrets
 .python-version
 uv.lock
 update_ui.ps1
+build.ps1

@@ -1,0 +1,13 @@
+{
+    "hostname": "example.com",
+    "port": 21,
+    "username": "ftpuser@example.com",
+    "password": "password",
+    "timeout": 15,
+    "local_website_directory": "C:\\SwissTiming\\websites\\DDB",
+    "remote_directory": "/demo",
+    "fsm_directory": "C:\\SwissTiming\\OVR\\FSManager",
+    "edits_file": "replacements.json",
+    "save_file": "save.json",
+    "copy_pdfs": true
+}

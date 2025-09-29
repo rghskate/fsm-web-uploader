@@ -166,3 +166,4 @@ secrets
 # UV
 .python-version
 uv.lock
+update_ui.ps1

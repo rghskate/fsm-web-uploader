@@ -2,24 +2,41 @@
 
 FSM Web Uploader is an FTP-based application for managing and automating the upload of the website files produced by the FS Manager software used in judging figure skating competitions.
 
-## Motivation
-
-This program was created to solve the rather specific problem of judging and technical panels changing at short notice due to unforeseen circumstances leading to communication difficulties during figure skating events. It has since evolved into a more general tool for uploading FS Manager generated files, which serve well for ISU competitions but leave something to be desired with regards to federated competitions.
-
 ## Functionality
 
-The program comes with both a CLI and GUI, depending on user preference. Functionality between the two versions is effectively identical. The main features are as follows:
+The core functionality of this program is as follows:
+- Allows secure connections to FTP sites that support FTP over TLS, in addition to allowing insecure connections when this is not available.
+- Monitors the website output folder of FS Manager for new files and uploads new files as they are made available
+- Stores the state of the folder between runs to avoid reuploading duplicate files.
+- Makes arbitrary edits to the uploaded HTML files as defined in provided replacements file, and does so non-destructively by making the edits in memory only.
+- Selectively uploads pages displaying judging panels, accommodating last minute changes without having to manually manage the contents of the website output directory.
 
-- Monitors folder of HTML files created by FS Manager and uploads changes as they are made by comparing file hashes.
-- Copies PDFs from the FS Manager directory to the upload directory as they are generated, and replaces them with the latest version in case of changes.
-- Makes arbitrary edits to the uploaded HTML files as defined in the provided replacements CSV (e.g., removing references to Solo Dance necessary when using older versions of FS Manager to run solo dance competitions). This is preferable to editing the templates used by FS Manager as doing so can lead to breaking the generation of the pages.
-  - For a template of an appropriate file to define replacements in.
+## Use
+
+The program is designed to be as simple to use as possible. Simply fill the information fields and click run! The fields are as follows:
+- **Hostname:** the hostname or IP address of the FTP server (e.g., bisresults.co.uk)
+- **Port:** the port of the FTP server (e.g., 21)
+- **Username:** your FTP username
+- **Password:** your FTP account password (NOTE: saving the config of your setup save the password in plain text. Store your files securely!)
+- **Timeout duration:** the timeout duration of the server in minutes. See the footnote for an explanation of this functionality.
+- **Local website folder:** the folder that FSM outputs your site files to. The directory will have the same name as the competition code of the competition you are running.
+- **Remote directory:** the folder on the FTP server that your files will be uploaded to. This folder MUST exist before using this program.
+- **Edits file:** a JSON file specifying edits to be made to the HTML files when they are uploaded. The keys specify the text to be replaced, and the values the text it will be replaced with.
+- **Save file:** a JSON file saving the state of the folder at the start and end of each program run. This can be either a path to an existing file or a path to save a new file to.
+- **Copy PDFs?:** This option specifies whether the program should search for PDFs to upload to the site. Currently, only Judges Details Per Skater are supported. 
+- **FS Manager Folder:** The root directory of FS Manager that the program will search for PDFs. The default location is C:\SwissTiming\OVR\FSManager.
+
+**Note:** as there is no universal keepalive standard amongst FTP servers, this program uses the broadest possible approach of sending a file (.keep) consisting of a single byte of data to the remote server one minute before the specified timeout duration.
+
+Examples of the configuration and replacement files are in the `templates` folder of this repository.
 
 ## Installation
 
-Currently, only the GUI portion of the application is distributed as a packaged application, and only for Windows (although FS Manager only runs on Windows so it's probably the only place that you'd ever want to use it anyway). To use it, unzip the folder to wherever you want to keep the application and run the executable.
-
-To run the application from source using UV, the below sequence of commands in PowerShell should work:
+There are two methods to install this program:
+- Install the pre-packaged binary: for this, simply download the folder and unzip it where you want to keep the application.
+- Install from source: to do this, UV is the recommended method. A series of example commands is below.
+  - Clone the git archive
+  - Run `main.py` using UV (see below)
 
 ```PowerShell
 git clone "https://github.com/rghskate/fsm-web-uploader"
@@ -29,20 +46,9 @@ uv run gui.py
 
 ## Licenses
 
-This application is released under a GPLv3 license, the text of which can be found bundled with this application, or else at this address: https://www.gnu.org/licenses/gpl-3.0.en.html
+This application is released under a GPLv3 license, the text of which can be found bundled with this application, or else at this address: https://www.gnu.org/licenses/gpl-3.0.en.html.
 
-This application is written in Python, which is licensed under the [Python Software Foundation License](https://docs.python.org/3/license.html).
-
-This application relies on the following third party modules and their corresponding licenses:
-
-| Module | License |
-|---|---|
-| [Beautiful Soup](https://www.crummy.com/software/BeautifulSoup/) | [MIT](https://opensource.org/license/mit) |
-| [LXML](https://lxml.de/) | [BSD-3-Clause](https://github.com/lxml/lxml/blob/master/doc/licenses/BSD.txt) |
-| [Pandas](https://pandas.pydata.org/) | [BSD-3-Clause](https://github.com/pandas-dev/pandas/blob/main/LICENSE) |
-| [PyQt6](https://doc.qt.io/qtforpython-6) | [GPLv3](https://www.gnu.org/licenses/gpl-3.0.en.html) |
-
-The author of this software can be contacted at [robert.hayes@iceskating.org.uk](mailto:robert.hayes@iceskating.org.uk).
+The licenses of the libraries this application uses can be found in LICENSES.md, or in the licenses window of the application.
 
 # DISCLAIMER
 

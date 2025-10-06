@@ -28,6 +28,9 @@ class QueueEntry:
     def set_future(self):
         self.future = True
 
+    def unset_future(self):
+        self.future = False
+
     def get_is_future(self):
         return self.future
 

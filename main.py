@@ -610,11 +610,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             if value.in_progress is False:
                 if (check_time - item_upload_time) >= self.cool_off_period:
                     value.set_in_progress()
-                    value.standard_item.setText(f"📨{value.standard_item.text()}")
+                    value.unset_future()
+                    value.standard_item.setText(f"📨{value.basename}")
                     self.signal_upload_file.emit(value.full_path, 0)
-                elif (check_time - item_upload_time) < 0:
-                    value.set_in_progress()
-                    value.standard_item.setText(f"⏳{value.standard_item.text()}")
+                elif (check_time - item_upload_time) < 0 and value.future is False:
+                    value.standard_item.setText(f"⏳{value.basename}")
                     value.set_future()
 
     @Slot(str)

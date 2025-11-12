@@ -348,7 +348,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def update_upload_queue_length(self):
         current_uploads, future_uploads = self.upload_queue.get_queue_size()
         if current_uploads == 0 and future_uploads == 0:
-            self.groupBoxUploadQueue.setTitle(f"Upload Queue")
+            self.groupBoxUploadQueue.setTitle("Upload Queue")
         else:
             self.groupBoxUploadQueue.setTitle(
                 f"Upload Queue ({current_uploads},{future_uploads})"
@@ -703,7 +703,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.stop_uploader_phase_two()
         self.create_error_dialog(
             error_message,
-            f"FTP upload encountered an error",
+            "FTP upload encountered an error",
         )
 
     @Slot()
@@ -760,7 +760,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.timer_display_update = None
         self.display_time_since_last_update()
 
-        if (self.graceful_stop == True) and (
+        if (self.graceful_stop is True) and (
             self.config_object.save_filepath is not None
         ):
             self.signal_write_save.emit(self.get_check_time())
@@ -858,33 +858,33 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.stop_ftp_filesystem_watcher()
         except RuntimeError:
             self.logger.warning(
-                f"Error encountered when terminating FTP filesystem watcher:",
+                "Error encountered when terminating FTP filesystem watcher:",
                 exc_info=True,
             )
         try:
             self.stop_pdf_filesystem_watcher()
         except RuntimeError:
             self.logger.warning(
-                f"Error encountered when terminating PDF filesystem watcher:",
+                "Error encountered when terminating PDF filesystem watcher:",
                 exc_info=True,
             )
         try:
             self.stop_pdf_copier()
         except RuntimeError:
             self.logger.warning(
-                f"Error encountered when terminating PDF copier thread:", exc_info=True
+                "Error encountered when terminating PDF copier thread:", exc_info=True
             )
         try:
             self.stop_ftp_uploader()
         except RuntimeError:
             self.logger.warning(
-                f"Error encountered when terminating FTP upload thread:", exc_info=True
+                "Error encountered when terminating FTP upload thread:", exc_info=True
             )
         try:
             self.stop_differencer()
         except RuntimeError:
             self.logger.warning(
-                f"Error encountered when terminating differencer thread:", exc_info=True
+                "Error encountered when terminating differencer thread:", exc_info=True
             )
         return super().closeEvent(event)
 

@@ -14,6 +14,20 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+# nuitka-project: --mode=onefile
+# nuitka-project: --onefile-windows-splash-screen-image={MAIN_DIRECTORY}\splash.jpg
+# nuitka-project: --include-data-dir={MAIN_DIRECTORY}\icons=icons
+# nuitka-project: --enable-plugin=pyside6
+# nuitka-project: --windows-console-mode=disable
+# nuitka-project: --windows-icon-from-ico={MAIN_DIRECTORY}\icons\win_icon.ico
+# nuitka-project: --product-name="FSM Web Uploader"
+# nuitka-project: --file-description="FTP uploader for FSM websites."
+# nuitka-project: --copyright="Copyright Robert Hayes 2026"
+# nuitka-project: --product-version=1.0.1
+# nuitka-project: --file-version=1.0.1
+# nuitka-project: --company-name="British Ice Skating"
+# nuitka-project: --output-filename=fsm-web-uploader.exe
+
 from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -35,6 +49,7 @@ import sys
 import os
 import json
 import logging
+import tempfile
 
 from mainWindow import Ui_MainWindow
 from timeWindow import Ui_Dialog
@@ -902,17 +917,23 @@ def main():
     )
     app = QApplication(sys.argv)
     if sys.platform.startswith("win32"):
-        icon = QIcon(
-            os.path.abspath(os.path.join(os.path.dirname(__file__), "win_icon.ico"))
-        )
+        icon = QIcon(os.path.join(os.path.dirname(__file__), "icons", "win_icon.ico"))
     else:
-        icon = QIcon(
-            os.path.abspath(os.path.join(os.path.dirname(__file__), "icon.svg"))
-        )
+        icon = QIcon(os.path.join(os.path.dirname(__file__), "icons", "icon.svg"))
     app.setWindowIcon(icon)
     app.setStyle("Fusion")
     window = MainWindow()
     window.show()
+
+    if "NUITKA_ONEFILE_PARENT" in os.environ:
+        splash_filename = os.path.join(
+            tempfile.gettempdir(),
+            "onefile_%d_splash_feedback.tmp" % int(os.environ["NUITKA_ONEFILE_PARENT"]),
+        )
+
+        if os.path.exists(splash_filename):
+            os.unlink(splash_filename)
+
     sys.exit(app.exec())
 
 

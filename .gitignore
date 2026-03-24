@@ -168,3 +168,7 @@ secrets
 uv.lock
 update_ui.ps1
 build.ps1
+
+*.build
+*.dist
+*.onefile-build

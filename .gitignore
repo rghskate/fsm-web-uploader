@@ -172,3 +172,4 @@ build.ps1
 *.build
 *.dist
 *.onefile-build
+*.exe
